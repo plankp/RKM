@@ -2,6 +2,23 @@
 
 At the moment, the goal of this project is just to have fun. Nothing else.
 
+# Requirements and Build Instructions
+
+Check the `dune-project` file for required dependencies.
+The project is built using `opam` as follows:
+
+```sh
+# inside the project root directory:
+opam install . --deps-only --with-test
+opam exec -- dune build
+
+# to run the tests
+opam exec -- dune runtest
+
+# to run the program (append additional program arguments after this)
+opam exec -- dune exec rkm
+```
+
 # Sample Snippet
 
 ```
