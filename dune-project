@@ -13,5 +13,5 @@
  (synopsis "Just yet another programming language")
  (depends
   (dune (>= 2.8.0))
-  (ocaml (>= 4.04.0))
+  (ocaml (>= 4.08.0))
   (zarith (>= 1.10))))
