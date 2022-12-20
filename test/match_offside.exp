@@ -1,0 +1,3 @@
+case ((f g) h) of { A -> a; (B x) -> b; C -> (c d); D -> q; }
+case x of { (A x y) -> a; B -> b; }
+case s1 of { A -> a; B -> case s2 of { I -> i; J -> j; }; C -> case s2 of { I -> i; }; }

@@ -1,0 +1,5 @@
+// Only see the first two because (g h i) is misaligned
+a b c;
+d e
+f;
+  g h i

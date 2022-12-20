@@ -1,0 +1,5 @@
+(library
+ (name rkm)
+ (libraries menhirLib zarith))
+
+(ocamllex Lexer)
