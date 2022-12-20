@@ -66,7 +66,7 @@ let expect_tok tok tokens err =
 
 let skip_tab ?(m=(~-1)) tokens =
   match tokens () with
-    | Cons (LEADER_HINT n, tl) when m = ~-1 || n = m -> tl
+    | Cons (LEADER_HINT n, tl) when m = ~-1 || n >= m -> tl
     | v -> fun () -> v
 
 let parse_block rule tokens =
@@ -99,6 +99,7 @@ let rec prog tokens =
   parse_block expr tokens
 
 and expr m tokens =
+  let tokens = skip_tab ~m tokens in
   match tokens () with
     | Cons (LET, tl) ->
       let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
@@ -125,8 +126,8 @@ and expr2 m tokens =
     | t -> Ok (t, tl)
 
 and expr3 m tokens =
-  let tl = skip_tab ~m tokens in
-  match tl () with
+  let tokens = skip_tab ~m tokens in
+  match tokens () with
     | Cons (IDVAR v, tl) -> Ok (Some (Var v), tl)
     | Cons (LPAREN, tl) -> begin
       let tl = skip_tab tl in

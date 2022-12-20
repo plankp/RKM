@@ -11,7 +11,22 @@ match x with { A
  x y -> a;
 B -> b }
 
+// gives { A; B { I; J }; C { I } }
 match s1 with A -> a
               B -> match s2 with I -> i
+                                 J -> j
+              C -> match s2 with I -> i
+
+// same as above
+match s1 with
+  A -> a
+  B -> match s2 with
+    I -> i; J -> j
+  C ->
+   match s2 with I -> i
+
+// gives { A; B { I }; J; C { I } }
+match s1 with A -> a
+               B -> match s2 with I -> i
                                  J -> j
               C -> match s2 with I -> i
