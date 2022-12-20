@@ -96,26 +96,7 @@ let dump_tokens tokens =
   Seq.iter (printf "%a\n" output_token) tokens
 
 let rec prog tokens =
-  match tokens () with
-    | Cons (LCURLY, tl) ->
-      let* (acc, tl) = prog_tail ~-1 tl in
-      let* (_, tl) = expect_tok RCURLY tl "missing '}'" in
-      Ok (acc, tl)
-    | v -> prog_tail 0 (fun () -> v)
-
-and prog_tail m tokens =
-  let rec loop acc allow_semi tokens =
-    let tail tl =
-      let* (e, tl) = expr m tl in
-      match e with
-        | Some e -> loop (e :: acc) true tl
-        | None -> Ok (List.rev acc, tl) in
-    match tokens () with
-      | Cons (LEADER_HINT _, tl) when m = ~-1 -> loop acc allow_semi tl
-      | Cons (LEADER_HINT n, tl) when n = m -> tail tl
-      | Cons (SEMI, tl) when allow_semi -> loop acc false tl
-      | v -> tail (fun () -> v) in
-  loop [] false tokens
+  parse_block expr tokens
 
 and expr m tokens =
   match tokens () with

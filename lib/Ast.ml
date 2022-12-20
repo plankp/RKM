@@ -25,7 +25,7 @@ let rec output ppf = function
     List.iter (fun (n, i) -> fprintf ppf " %s = %a;" n output i) vb;
     fprintf ppf " } in %a" output e
   | Case (s, cases) ->
-    fprintf ppf "case %a of {" output s;
+    fprintf ppf "match %a with {" output s;
     List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output e) cases;
     output_string ppf " }";
 

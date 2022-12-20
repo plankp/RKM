@@ -3,8 +3,8 @@ open Parser
 
 let parse rule lexbuf =
   let token_seq : token Seq.t = fun () ->
-    let rec loop colpos first =
-      let (first, alignpos, colpos, tok) = read colpos first lexbuf in
+    let rec loop colpos first_tok =
+      let (leads_line, alignpos, colpos, tok) = read colpos first_tok lexbuf in
       let tail () =
         match tok with
           | EOF ->
@@ -16,7 +16,12 @@ let parse rule lexbuf =
               if tok = LCURLY then tail ()
               else Seq.Cons (INDENT_HINT alignpos, tail))
           | _ -> Seq.Cons (tok, fun () -> loop colpos false) in
-      if first && tok <> LCURLY then Seq.Cons (LEADER_HINT alignpos, tail)
+
+      if leads_line then
+        (* there is an implicit alignment hint at the start of the file *)
+        if tok = LCURLY then tail ()
+        else if first_tok then Seq.Cons (INDENT_HINT alignpos, tail)
+        else Seq.Cons (LEADER_HINT alignpos, tail)
       else tail () in
     loop 0 true in
 
