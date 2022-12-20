@@ -4,3 +4,9 @@ let { x = a; y = b; } in z
 let { x = a; y = b; } in z
 let { x = a; y = (b c); g = ((h i) j); } in q
 let { x = a; y = (b c); g = ((h i) j); } in q
+let rec { x = a; y = b; g = c; } in z
+let rec { x = a; y = b; } in z
+let rec { x = a; y = b; } in z
+let rec { x = a; y = b; } in z
+let rec { x = a; y = (b c); g = ((h i) j); } in q
+let rec { x = a; y = (b c); g = ((h i) j); } in q

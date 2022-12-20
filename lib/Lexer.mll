@@ -35,6 +35,7 @@ rule read pos first = parse
   | "match" { (first, pos, movecol pos 5, MATCH) }
   | "with" { (first, pos, movecol pos 4, WITH) }
   | "let" { (first, pos, movecol pos 3, LET) }
+  | "rec" { (first, pos, movecol pos 3, REC) }
   | "in" { (first, pos, movecol pos 2, IN) }
   | '_' { (first, pos, movecol pos 1, UNDERSCORE) }
   | id_ctor {

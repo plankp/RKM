@@ -4,7 +4,7 @@ type ast_expr =
   | Var of string
   | Tup of ast_expr list
   | App of ast_expr * ast_expr
-  | Let of (string * ast_expr) list * ast_expr
+  | Let of bool * (string * ast_expr) list * ast_expr
   | Case of ast_expr * (ast_pat * ast_expr) list
 
 and ast_pat =
@@ -20,8 +20,8 @@ let rec output ppf = function
     fprintf ppf "(%a" output x;
     List.iter (fprintf ppf ", %a" output) xs;
     output_string ppf ")"
-  | Let (vb, e) ->
-    output_string ppf "let {";
+  | Let (recur, vb, e) ->
+    output_string ppf (if recur then "let rec {" else "let {");
     List.iter (fun (n, i) -> fprintf ppf " %s = %a;" n output i) vb;
     fprintf ppf " } in %a" output e
   | Case (s, cases) ->

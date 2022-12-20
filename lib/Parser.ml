@@ -18,6 +18,7 @@ type token =
 
 (* keywords and literals *)
   | LET
+  | REC
   | IN
   | MATCH
   | WITH
@@ -43,6 +44,7 @@ let output_token ppf = function
   | SEMI -> fprintf ppf "SEMI"
   | SET -> fprintf ppf "SET"
   | LET -> fprintf ppf "LET"
+  | REC -> fprintf ppf "REC"
   | IN -> fprintf ppf "IN"
   | MATCH -> fprintf ppf "MATCH"
   | WITH -> fprintf ppf "WITH"
@@ -83,6 +85,11 @@ let expect_tok ?(m = ~-1) tok tokens err =
       else Error (p, err)
     | _ -> Error (dummy_pos, err)
 
+let maybe_tok ?(m = ~-1) tok tokens =
+  match tokens () with
+    | Cons ((t, p, f), tl) when t = tok && obeys_alignment m p f -> (true, tl)
+    | v -> (false, fun () -> v)
+
 let parse_block rule tokens =
   let parse_entries m tokens =
     let rec loop acc allow_semi tokens =
@@ -114,10 +121,11 @@ let rec prog tokens =
 and expr m tokens =
   match tokens () with
     | Cons ((LET, p, f), tl) when obeys_alignment m p f ->
+      let (recur, tl) = maybe_tok REC tl in
       let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
       let* (_, tl) = expect_tok IN tl "missing 'in'" in
       let* (e, tl) = expect_rule (expr m) tl "missing body" in
-      Ok (Some (Let (vb, e)), tl)
+      Ok (Some (Let (recur, vb, e)), tl)
     | Cons ((MATCH, p, f), tl) when obeys_alignment m p f ->
       let* (s, tl) = expect_rule (expr ~-1) tl "missing scrutinee" in
       let* (_, tl) = expect_tok WITH tl "missing 'with'" in
