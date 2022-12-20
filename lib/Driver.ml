@@ -2,18 +2,12 @@ open Lexer
 open Parser
 
 let parse rule lexbuf =
-  let token_seq : (token * position) Seq.t = fun () ->
+  let token_seq : (token * position * bool) Seq.t = fun () ->
     let rec loop next_pos first_tok =
       let (leads_line, pos, next_pos, tok) = read next_pos first_tok lexbuf in
-      let tail () =
         match tok with
-          | EOF -> Seq.Cons ((EOF, pos), fun () -> Seq.Nil)
-          | _ -> Seq.Cons ((tok, pos), fun () -> loop next_pos false) in
-
-      if leads_line then
-        if first_tok || tok = LCURLY then tail ()
-        else Seq.Cons ((LEADER_HINT pos.colno, pos), tail)
-      else tail () in
+          | EOF -> Seq.Cons ((EOF, pos, leads_line), fun () -> Seq.Nil)
+          | _ -> Seq.Cons ((tok, pos, leads_line), fun () -> loop next_pos false) in
     loop { lineno = 0; colno = 0; } true in
 
   try
