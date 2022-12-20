@@ -5,7 +5,6 @@ open Printf
 type token =
 (* special magical symbols *)
   | EOF
-  | INDENT_HINT of int
   | LEADER_HINT of int
 
 (* set of symbols *)
@@ -36,7 +35,6 @@ let dummy_pos : position = { lineno = ~-1; colno = ~-1 }
 
 let output_token ppf = function
   | EOF -> fprintf ppf "EOF"
-  | INDENT_HINT n -> fprintf ppf "{%d}" n
   | LEADER_HINT n -> fprintf ppf "<%d>" n
   | LPAREN -> fprintf ppf "LPAREN"
   | RPAREN -> fprintf ppf "RPAREN"
@@ -104,12 +102,11 @@ let parse_block rule tokens =
     loop [] false tokens in
 
   match tokens () with
-    | Cons ((INDENT_HINT n, _), tl) -> parse_entries n tl
     | Cons ((LCURLY, _), tl) ->
       let* (acc, tl) = parse_entries ~-1 tl in
       let* (_, tl) = expect_tok RCURLY tl "missing '}'" in
       Ok (acc, tl)
-    | Cons ((_, p), _) -> Error (p, "missing aligned block")
+    | Cons ((_, p), _) as v -> parse_entries p.colno (fun () -> v)
     | _ -> Error (dummy_pos, "missing aligned block")
 
 let dump_tokens tokens =
