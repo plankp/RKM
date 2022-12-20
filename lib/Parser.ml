@@ -69,6 +69,29 @@ let skip_tab ?(m=(~-1)) tokens =
     | Cons (LEADER_HINT n, tl) when m = ~-1 || n = m -> tl
     | v -> fun () -> v
 
+let parse_block rule tokens =
+  let parse_entries m tokens =
+    let rec loop acc allow_semi tokens =
+      let tail tl =
+        let* (e, tl) = rule m tl in
+        match e with
+          | Some e -> loop (e :: acc) true tl
+          | None -> Ok (List.rev acc, tl) in
+      match tokens () with
+        | Cons (LEADER_HINT _, tl) when m = ~-1 -> loop acc allow_semi tl
+        | Cons (LEADER_HINT n, tl) when n = m -> tail tl
+        | Cons (SEMI, tl) when allow_semi -> loop acc false tl
+        | v -> tail (fun () -> v) in
+    loop [] false tokens in
+
+  match tokens () with
+    | Cons (INDENT_HINT n, tl) -> parse_entries n tl
+    | Cons (LCURLY, tl) ->
+      let* (acc, tl) = parse_entries ~-1 tl in
+      let* (_, tl) = expect_tok RCURLY tl "missing '}'" in
+      Ok (acc, tl)
+    | _ -> Error "missing aligned block"
+
 let dump_tokens tokens =
   Seq.iter (printf "%a\n" output_token) tokens
 
@@ -97,14 +120,14 @@ and prog_tail m tokens =
 and expr m tokens =
   match tokens () with
     | Cons (LET, tl) ->
-      let* (vb, tl) = expect_some bindings tl "missing bindings" in
+      let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
       let* (_, tl) = expect_tok IN (skip_tab tl) "missing 'in'" in
       let* (e, tl) = expect_rule (expr m) tl "missing body" in
       Ok (Some (Let (vb, e)), tl)
     | Cons (MATCH, tl) ->
       let* (s, tl) = expect_rule (expr ~-1) tl "missing scrutinee" in
       let* (_, tl) = expect_tok WITH (skip_tab tl) "missing 'with'" in
-      let* (cases, tl) = expect_some cases tl "missing cases" in
+      let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
       Ok (Some (Case (s, cases)), tl)
     | v -> expr2 m (fun () -> v)
 
@@ -143,29 +166,6 @@ and expr3 m tokens =
     end
     | v -> Ok (None, fun () -> v)
 
-and bindings tokens =
-  match tokens () with
-    | Cons (INDENT_HINT n, tl) -> binding_tail n tl
-    | Cons (LCURLY, tl) ->
-      let* (acc, tl) = binding_tail ~-1 tl in
-      let* (_, tl) = expect_tok RCURLY tl "missing '}'" in
-      Ok (acc, tl)
-    | _ -> failwith "missing block" (* unlikely to happen *)
-
-and binding_tail m tokens =
-  let rec loop acc allow_semi tokens =
-    let tail tl =
-      let* (vb, tl) = binding m tl in
-      match vb with
-        | Some vb -> loop (vb :: acc) true tl
-        | None -> Ok (List.rev acc, tl) in
-    match tokens () with
-      | Cons (LEADER_HINT _, tl) when m = ~-1 -> loop acc allow_semi tl
-      | Cons (LEADER_HINT n, tl) when n = m -> tail tl
-      | Cons (SEMI, tl) when allow_semi -> loop acc false tl
-      | v -> tail (fun () -> v) in
-  loop [] false tokens
-
 and binding m tokens =
   match tokens () with
     | Cons (IDVAR n, tl) ->
@@ -177,29 +177,6 @@ and binding m tokens =
       let* (e, tl) = expect_rule (expr m) tl "missing initializer" in
       Ok (Some (n, e), tl)
     | v -> Ok (None, fun () -> v)
-
-and cases tokens =
-  match tokens () with
-    | Cons (INDENT_HINT n, tl) -> case_tail n tl
-    | Cons (LCURLY, tl) ->
-      let* (acc, tl) = case_tail ~-1 tl in
-      let* (_, tl) = expect_tok RCURLY tl "missing '}'" in
-      Ok (acc, tl)
-    | _ -> failwith "missing block" (* unlikely to happen *)
-
-and case_tail m tokens =
-  let rec loop acc allow_semi tokens =
-    let tail tl =
-      let* (k, tl) = case m tl in
-      match k with
-        | Some k -> loop (k :: acc) true tl
-        | None -> Ok (List.rev acc, tl) in
-    match tokens () with
-      | Cons (LEADER_HINT _, tl) when m = ~-1 -> loop acc allow_semi tl
-      | Cons (LEADER_HINT n, tl) when n = m -> tail tl
-      | Cons (SEMI, tl) when allow_semi -> loop acc false tl
-      | v -> tail (fun () -> v) in
-  loop [] false tokens
 
 and case m tokens =
   (* setup the aligment to be just after the pattern *)
