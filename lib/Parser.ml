@@ -90,6 +90,14 @@ let maybe_tok ?(m = ~-1) tok tokens =
     | Cons ((t, p, f), tl) when t = tok && obeys_alignment m p f -> (true, tl)
     | v -> (false, fun () -> v)
 
+let parse_many m rule tokens =
+  let rec loop acc tl =
+    let* (v, tl) = rule m tl in
+    match v with
+      | Some v -> loop (v :: acc) tl
+      | None -> Ok (List.rev acc, tl) in
+  loop [] tokens
+
 let parse_block rule tokens =
   let parse_entries m tokens =
     let rec loop acc allow_semi tokens =
@@ -173,9 +181,10 @@ and binding m tokens =
     | Cons ((IDVAR n, p, f), tl) when obeys_alignment m p f ->
       (* setup the alignment to be just after the variable *)
       let m = if m = ~-1 then m else m + 1 in
+      let* (args, tl) = parse_many m pat4 tl in
       let* (_, tl) = expect_tok ~m SET tl "missing '='" in
       let* (e, tl) = expect_rule (expr m) tl "missing initializer" in
-      Ok (Some (n, e), tl)
+      Ok (Some (DefValue (n, args, e)), tl)
     | v -> Ok (None, fun () -> v)
 
 and case m tokens =
@@ -195,12 +204,8 @@ and pat m tokens =
 and pat3 m tokens =
   match tokens () with
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
-      let rec loop acc tl =
-        let* (v, tl) = pat4 m tl in
-        match v with
-          | Some v -> loop (v :: acc) tl
-          | None -> Ok (Some (Decons (k, List.rev acc)), tl) in
-      loop [] tl
+      let* (args, tl) = parse_many m pat4 tl in
+      Ok (Some (Decons (k, args)), tl)
     | v -> pat4 m (fun () -> v)
 
 and pat4 m tokens =
@@ -211,4 +216,21 @@ and pat4 m tokens =
       Ok (Some (Cap (Some n)), tl)
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Decons (k, [])), tl)
+    | Cons ((LPAREN, p, f), tl) when obeys_alignment m p f -> begin
+      (* parenthesized patterns are also free-form *)
+      match tl () with
+        | Cons ((RPAREN, _, _), tl) -> Ok (Some (Unpack []), tl)
+        | v ->
+          let rec loop acc tl =
+            let* (e, tl) = expect_rule (pat ~-1) tl "missing pattern" in
+            match tl () with
+              | Cons ((RPAREN, _, _), tl) ->
+                if acc = [] then Ok (Some e, tl)
+                else Ok (Some (Unpack (List.rev_append acc [e])), tl)
+              | Cons ((COMMA, _, _), tl) -> loop (e :: acc) tl
+              | Cons ((_, p, _), _) -> Error (p, "unclosed parenthesized pattern")
+              | _ -> Error (dummy_pos, "unclosed parenthesized pattern") in
+          loop [] (fun () -> v)
+    end
+
     | v -> Ok (None, fun () -> v)

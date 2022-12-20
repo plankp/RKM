@@ -40,3 +40,12 @@ let rec
  x = a; y = b c
  g = (h // parenthesis allows side-stepping offside rule
  i j) in q
+
+// here we mix a match and let together
+// (intentionally somewhat poorly formatted)
+let rev xs = let rec loop
+                      acc xs = match xs with
+                        Nil -> acc
+                        Cons x xs -> loop (cons x acc) xs
+             in loop empty_list xs
+in rev

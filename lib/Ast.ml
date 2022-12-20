@@ -4,13 +4,16 @@ type ast_expr =
   | Var of string
   | Tup of ast_expr list
   | App of ast_expr * ast_expr
-  | Let of bool * (string * ast_expr) list * ast_expr
+  | Let of bool * ast_vdef list * ast_expr
   | Case of ast_expr * (ast_pat * ast_expr) list
 
 and ast_pat =
   | Cap of string option
   | Decons of string * ast_pat list
+  | Unpack of ast_pat list
 
+and ast_vdef =
+  | DefValue of string * ast_pat list * ast_expr
 
 let rec output ppf = function
   | Var x -> output_string ppf x
@@ -22,7 +25,7 @@ let rec output ppf = function
     output_string ppf ")"
   | Let (recur, vb, e) ->
     output_string ppf (if recur then "let rec {" else "let {");
-    List.iter (fun (n, i) -> fprintf ppf " %s = %a;" n output i) vb;
+    List.iter (fprintf ppf " %a;" output_vdef) vb;
     fprintf ppf " } in %a" output e
   | Case (s, cases) ->
     fprintf ppf "match %a with {" output s;
@@ -36,3 +39,14 @@ and output_pat ppf = function
     fprintf ppf "(%s" k;
     List.iter (fprintf ppf " %a" output_pat) xs;
     output_string ppf ")"
+  | Unpack [] -> output_string ppf "()"
+  | Unpack (x :: xs) ->
+    fprintf ppf "(%a" output_pat x;
+    List.iter (fprintf ppf ", %a" output_pat) xs;
+    output_string ppf ")"
+
+and output_vdef ppf = function
+  | DefValue (n, args, e) ->
+    output_string ppf n;
+    List.iter (fprintf ppf " %a" output_pat) args;
+    fprintf ppf " = %a" output e
