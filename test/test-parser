@@ -1,0 +1,26 @@
+(rule
+ (with-stdout-to top_offside.out
+  (with-stdin-from top_offside.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff top_offside.exp top_offside.out)))
+
+(rule
+ (with-stdout-to let_offside.out
+  (with-stdin-from let_offside.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff let_offside.exp let_offside.out)))
+
+(rule
+ (with-stdout-to match_offside.out
+  (with-stdin-from match_offside.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff match_offside.exp match_offside.out)))
