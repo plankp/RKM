@@ -27,6 +27,13 @@ type token =
   | IDCTOR of string
   | IDVAR of string
 
+type position = {
+  lineno : int;
+  colno : int;
+}
+
+let dummy_pos : position = { lineno = ~-1; colno = ~-1 }
+
 let output_token ppf = function
   | EOF -> fprintf ppf "EOF"
   | INDENT_HINT n -> fprintf ppf "{%d}" n
@@ -49,24 +56,36 @@ let output_token ppf = function
 
 let ( let* ) = Result.bind
 
+let peek_position tokens =
+  match tokens () with
+    | Cons ((t, p), tl) -> (p, fun () -> Cons ((t, p), tl))
+    | v -> (dummy_pos, fun () -> v)
+
 let expect_rule rule tokens err =
   let* (v, tl) = rule tokens in
   match v with
     | Some v -> Ok (v, tl)
-    | None -> Error err
+    | None ->
+      let (p, _) = peek_position tl in
+      Error (p, err)
 
 let expect_some rule tokens err =
   let* (acc, tl) = rule tokens in
-  if acc = [] then Error err else Ok (acc, tl)
+  match acc with
+    | _ :: _ -> Ok (acc, tl)
+    | [] ->
+      let (p, _) = peek_position tl in
+      Error (p, err)
 
 let expect_tok tok tokens err =
   match tokens () with
-    | Cons (t, tl) when t = tok -> Ok (t, tl)
-    | _ -> Error err
+    | Cons ((t, p), tl) ->
+      if t = tok then Ok ((t, p), tl) else Error (p, err)
+    | _ -> Error (dummy_pos, err)
 
 let skip_tab ?(m=(~-1)) tokens =
   match tokens () with
-    | Cons (LEADER_HINT n, tl) when m = ~-1 || n >= m -> tl
+    | Cons ((LEADER_HINT n, _), tl) when m = ~-1 || n >= m -> tl
     | v -> fun () -> v
 
 let parse_block rule tokens =
@@ -78,22 +97,25 @@ let parse_block rule tokens =
           | Some e -> loop (e :: acc) true tl
           | None -> Ok (List.rev acc, tl) in
       match tokens () with
-        | Cons (LEADER_HINT _, tl) when m = ~-1 -> loop acc allow_semi tl
-        | Cons (LEADER_HINT n, tl) when n = m -> tail tl
-        | Cons (SEMI, tl) when allow_semi -> loop acc false tl
+        | Cons ((LEADER_HINT _, _), tl) when m = ~-1 -> loop acc allow_semi tl
+        | Cons ((LEADER_HINT n, _), tl) when n = m -> tail tl
+        | Cons ((SEMI, _), tl) when allow_semi -> loop acc false tl
         | v -> tail (fun () -> v) in
     loop [] false tokens in
 
   match tokens () with
-    | Cons (INDENT_HINT n, tl) -> parse_entries n tl
-    | Cons (LCURLY, tl) ->
+    | Cons ((INDENT_HINT n, _), tl) -> parse_entries n tl
+    | Cons ((LCURLY, _), tl) ->
       let* (acc, tl) = parse_entries ~-1 tl in
       let* (_, tl) = expect_tok RCURLY tl "missing '}'" in
       Ok (acc, tl)
-    | _ -> Error "missing aligned block"
+    | Cons ((_, p), _) -> Error (p, "missing aligned block")
+    | _ -> Error (dummy_pos, "missing aligned block")
 
 let dump_tokens tokens =
-  Seq.iter (printf "%a\n" output_token) tokens
+  let iterf (tok, p) =
+    printf "(%d, %d) %a\n" (p.lineno + 1) (p.colno + 1) output_token tok in
+  Seq.iter iterf tokens
 
 let rec prog tokens =
   parse_block expr tokens
@@ -101,12 +123,12 @@ let rec prog tokens =
 and expr m tokens =
   let tokens = skip_tab ~m tokens in
   match tokens () with
-    | Cons (LET, tl) ->
+    | Cons ((LET, _), tl) ->
       let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
       let* (_, tl) = expect_tok IN (skip_tab tl) "missing 'in'" in
       let* (e, tl) = expect_rule (expr m) tl "missing body" in
       Ok (Some (Let (vb, e)), tl)
-    | Cons (MATCH, tl) ->
+    | Cons ((MATCH, _), tl) ->
       let* (s, tl) = expect_rule (expr ~-1) tl "missing scrutinee" in
       let* (_, tl) = expect_tok WITH (skip_tab tl) "missing 'with'" in
       let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
@@ -128,29 +150,30 @@ and expr2 m tokens =
 and expr3 m tokens =
   let tokens = skip_tab ~m tokens in
   match tokens () with
-    | Cons (IDVAR v, tl) -> Ok (Some (Var v), tl)
-    | Cons (LPAREN, tl) -> begin
+    | Cons ((IDVAR v, _), tl) -> Ok (Some (Var v), tl)
+    | Cons ((LPAREN, _), tl) -> begin
       let tl = skip_tab tl in
       match tl () with
-        | Cons (RPAREN, tl) -> Ok (Some (Tup []), tl)
+        | Cons ((RPAREN, _), tl) -> Ok (Some (Tup []), tl)
         | v ->
           let rec loop acc tl =
             (* this is enclosed, so allow free-form (unaligned) expressions *)
             let* (e, tl) = expect_rule (expr ~-1) tl "missing expression" in
             let tl = skip_tab tl in
             match tl () with
-              | Cons (RPAREN, tl) ->
+              | Cons ((RPAREN, _), tl) ->
                 if acc = [] then Ok (Some e, tl)
                 else Ok (Some (Tup (List.rev_append acc [e])), tl)
-              | Cons (COMMA, tl) -> loop (e :: acc) tl
-              | _ -> Error "unclosed parenthesized expression" in
+              | Cons ((COMMA, _), tl) -> loop (e :: acc) tl
+              | Cons ((_, p), _) -> Error (p, "unclosed parenthesized expression")
+              | _ -> Error (dummy_pos, "unclosed parenthesized expression") in
           loop [] (fun () -> v)
     end
     | v -> Ok (None, fun () -> v)
 
 and binding m tokens =
   match tokens () with
-    | Cons (IDVAR n, tl) ->
+    | Cons ((IDVAR n, _), tl) ->
       (* setup the alignment to be just after the variable *)
       let m = if m = ~-1 then m else m + 1 in
       let tl = skip_tab ~m tl in
@@ -178,7 +201,7 @@ and pat m tokens =
 and pat3 m tokens =
   let tl = skip_tab ~m tokens in
   match tl () with
-    | Cons (IDCTOR k, tl) ->
+    | Cons ((IDCTOR k, _), tl) ->
       let rec loop acc tl =
         let* (v, tl) = pat4 m tl in
         match v with
@@ -190,7 +213,7 @@ and pat3 m tokens =
 and pat4 m tokens =
   let tl = skip_tab ~m tokens in
   match tl () with
-    | Cons (UNDERSCORE, tl) -> Ok (Some (Cap None), tl)
-    | Cons (IDVAR n, tl) -> Ok (Some (Cap (Some n)), tl)
-    | Cons (IDCTOR k, tl) -> Ok (Some (Decons (k, [])), tl)
+    | Cons ((UNDERSCORE, _), tl) -> Ok (Some (Cap None), tl)
+    | Cons ((IDVAR n, _), tl) -> Ok (Some (Cap (Some n)), tl)
+    | Cons ((IDCTOR k, _), tl) -> Ok (Some (Decons (k, [])), tl)
     | v -> Ok (None, fun () -> v)
