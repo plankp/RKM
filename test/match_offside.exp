@@ -4,3 +4,4 @@ match s1 with { A -> a; B -> match s2 with { I -> i; J -> j; }; C -> match s2 wi
 match s1 with { A -> a; B -> match s2 with { I -> i; J -> j; }; C -> match s2 with { I -> i; }; }
 match s1 with { A -> a; B -> match s2 with { I -> i; }; J -> j; C -> match s2 with { I -> i; }; }
 match k with { (a, b, c, d) -> (b, c, b, a); }
+(\$0 -> match $0 with { [] -> True; _ -> False; })

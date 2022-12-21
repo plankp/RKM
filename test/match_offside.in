@@ -34,3 +34,6 @@ match s1 with A -> a; // semicolon here to avoid -> (a B)
 
 match k with (a,
  b, c, d) -> (b, c, b, a);
+
+\match [] -> True
+       _ -> False;

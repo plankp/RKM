@@ -278,12 +278,6 @@ and expr4 m tokens =
             | [x] -> Ok (Some x, tl)
             | xs -> Ok (Some (Tup xs), tl)
     end
-    | Cons ((SLASH, p, f), tl) when obeys_alignment m p f -> begin
-      let* (args, tl) = expect_some (parse_many pat4) tl "missing argument pattern" in
-      let* (_, tl) = expect_tok ARROW tl "missing '->'" in
-      let* (e, tl) = expect_rule (expr m) tl "missing expression" in
-      Ok (Some (Lam (args, e)), tl)
-    end
     | Cons ((LET, p, f), tl) when obeys_alignment m p f ->
       let (recur, tl) = maybe_tok REC tl in
       let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
@@ -295,6 +289,20 @@ and expr4 m tokens =
       let* (_, tl) = expect_tok WITH tl "missing 'with'" in
       let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
       Ok (Some (Case (s, cases)), tl)
+    | Cons ((SLASH, p, f), tl) when obeys_alignment m p f ->
+      let (found, tl) = maybe_tok MATCH tl in
+      if found then begin
+        (* we have (\match p1 -> e1; ...) which we rewrite as
+         * (\v -> match v of ...) *)
+        let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
+        Ok (Some (Lam ([Cap (Some "$0")], Case (Var "$0", cases))), tl)
+      end else begin
+        (* we have a Lam node of (\p... -> e) *)
+        let* (args, tl) = expect_some (parse_many pat4) tl "missing argument pattern" in
+        let* (_, tl) = expect_tok ARROW tl "missing '->'" in
+        let* (e, tl) = expect_rule (expr m) tl "missing expression" in
+        Ok (Some (Lam (args, e)), tl)
+      end
 
     | v -> Ok (None, fun () -> v)
 
