@@ -52,3 +52,4 @@ in rev
 
 // operators are also allowed
 let (++) x y = (x, y) in (p ++ q, (++) p q)
+let (--) = \x y -> y - x in 1 -- 2

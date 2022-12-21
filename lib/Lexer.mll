@@ -66,6 +66,7 @@ rule read pos first = parse
   | '}' { (first, pos, movecol pos 1, RCURLY) }
   | ';' { (first, pos, movecol pos 1, SEMI) }
   | ',' { (first, pos, movecol pos 1, COMMA) }
+  | '\\' { (first, pos, movecol pos 1, SLASH) }
   | "->" { (first, pos, movecol pos 2, ARROW) }
   | "::" { (first, pos, movecol pos 2, OPSEQ "::") }
   | opchar+ {

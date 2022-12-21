@@ -15,6 +15,7 @@ type token =
   | RCURLY
   | SEMI
   | COMMA
+  | SLASH
   | ARROW
   | OPSEQ of string
 
@@ -46,6 +47,7 @@ let output_token ppf = function
   | RSQUARE -> fprintf ppf "RSQUARE"
   | LCURLY -> fprintf ppf "LCURLY"
   | RCURLY -> fprintf ppf "RCURLY"
+  | SLASH -> fprintf ppf "SLASH"
   | ARROW -> fprintf ppf "ARROW"
   | COMMA -> fprintf ppf "COMMA"
   | SEMI -> fprintf ppf "SEMI"
@@ -111,7 +113,7 @@ let maybe_tok ?(m = ~-1) tok tokens =
     | Cons ((t, p, f), tl) when t = tok && obeys_alignment m p f -> (true, tl)
     | v -> (false, fun () -> v)
 
-let parse_many m rule tokens =
+let parse_many ?(m = ~-1) rule tokens =
   let rec loop acc tl =
     let* (v, tl) = rule m tl in
     match v with
@@ -243,7 +245,7 @@ and expr3 m tokens =
    * the other is not *)
   match tokens () with
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
-      let* (args, tl) = parse_many m expr4 tl in
+      let* (args, tl) = parse_many ~m expr4 tl in
       Ok (Some (Ast.Cons (k, args)), tl)
     | v ->
       let* (f, tl) = expr4 m (fun () -> v) in
@@ -288,6 +290,12 @@ and expr4 m tokens =
             | [x] -> Ok (Some x, tl)
             | xs -> Ok (Some (Tup xs), tl)
     end
+    | Cons ((SLASH, p, f), tl) when obeys_alignment m p f -> begin
+      let* (args, tl) = expect_some (parse_many pat4) tl "missing argument pattern" in
+      let* (_, tl) = expect_tok ARROW tl "missing '->'" in
+      let* (e, tl) = expect_rule (expr m) tl "missing expression" in
+      Ok (Some (Lam (args, e)), tl)
+    end
 
     | v -> Ok (None, fun () -> v)
 
@@ -295,7 +303,7 @@ and binding m tokens =
   let tail n m tl =
     (* setup the alignment to be just after the variable *)
     let m = if m = ~-1 then m else m + 1 in
-    let* (args, tl) = parse_many m pat4 tl in
+    let* (args, tl) = parse_many ~m pat4 tl in
     let* (_, tl) = expect_tok ~m (OPSEQ "=") tl "missing '='" in
     let* (e, tl) = expect_rule (expr m) tl "missing initializer" in
     Ok (Some (DefValue (n, args, e)), tl) in
@@ -348,7 +356,7 @@ and pat3 m tokens =
    * parse would not result in a constant integer) *)
   match tokens () with
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
-      let* (args, tl) = parse_many m pat4 tl in
+      let* (args, tl) = parse_many ~m pat4 tl in
       Ok (Some (Decons (k, args)), tl)
     | Cons ((OPSEQ "-", p, f), tl) when obeys_alignment m p f -> begin
       let* (z, tl) = expect_rule (pat4 m) tl "missing pattern after integer negation" in

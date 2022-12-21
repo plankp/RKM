@@ -5,6 +5,7 @@ type ast_expr =
   | Lit of ast_lit
   | Tup of ast_expr list
   | Cons of string * ast_expr list
+  | Lam of ast_pat list * ast_expr
   | App of ast_expr * ast_expr
   | Unary of string * ast_expr
   | Binary of string * ast_expr * ast_expr
@@ -32,6 +33,10 @@ let rec output ppf = function
   | App (p, q) -> fprintf ppf "(%a %a)" output p output q
   | Binary (op, p, q) -> fprintf ppf "(%a %s %a)" output p op output q
   | Unary (op, p) -> fprintf ppf "(%s%a)" op output p
+  | Lam (args, e) ->
+    output_string ppf "(\\";
+    List.iter (fprintf ppf "%a " output_pat) args;
+    fprintf ppf "-> %a)" output e;
   | Cons (k, []) -> output_string ppf k
   | Cons (k, xs) ->
     fprintf ppf "(%s" k;
