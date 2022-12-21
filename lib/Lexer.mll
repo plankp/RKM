@@ -11,6 +11,7 @@ let new_line pos = { lineno = pos.lineno + 1; colno = 0 }
 let newline = '\n' | '\r' | "\r\n"
 let id_ctor = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let id_var = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+let opchar = ['+' '-' '*' '/' '%' '!' '<' '=' '>' '|' '&' '^' '~' '@']
 
 rule read pos first = parse
   (* comments *)
@@ -22,14 +23,17 @@ rule read pos first = parse
   | newline { read (new_line pos) true lexbuf }
 
   (* set of symbols *)
-  | "->" { (first, pos, movecol pos 2, ARROW) }
   | '(' { (first, pos, movecol pos 1, LPAREN) }
   | ')' { (first, pos, movecol pos 1, RPAREN) }
   | '{' { (first, pos, movecol pos 1, LCURLY) }
   | '}' { (first, pos, movecol pos 1, RCURLY) }
   | ';' { (first, pos, movecol pos 1, SEMI) }
   | ',' { (first, pos, movecol pos 1, COMMA) }
-  | '=' { (first, pos, movecol pos 1, SET) }
+  | "->" { (first, pos, movecol pos 2, ARROW) }
+  | "::" { (first, pos, movecol pos 2, OPSEQ "::") }
+  | opchar+ {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OPSEQ s) }
 
   (* keywords and literals *)
   | "match" { (first, pos, movecol pos 5, MATCH) }

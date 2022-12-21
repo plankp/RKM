@@ -24,3 +24,21 @@
 (rule
  (alias runtest)
  (action (diff match_offside.exp match_offside.out)))
+
+(rule
+ (with-stdout-to expr_prec.out
+  (with-stdin-from expr_prec.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff expr_prec.exp expr_prec.out)))
+
+(rule
+ (with-stdout-to pat_prec.out
+  (with-stdin-from pat_prec.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff pat_prec.exp pat_prec.out)))

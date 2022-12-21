@@ -49,3 +49,6 @@ let rev xs = let rec loop
                         Cons x xs -> loop (cons x acc) xs
              in loop empty_list xs
 in rev
+
+// operators are also allowed
+let (++) x y = (x, y) in (p ++ q, (++) p q)
