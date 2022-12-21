@@ -21,8 +21,8 @@ and ast_vdef =
 let rec output ppf = function
   | Var x -> output_string ppf x
   | App (p, q) -> fprintf ppf "(%a %a)" output p output q
-  | Binary (op, p, q) -> fprintf ppf "(%s %a %a)" op output p output q
-  | Unary (op, p) -> fprintf ppf "(%s %a)" op output p
+  | Binary (op, p, q) -> fprintf ppf "(%a %s %a)" output p op output q
+  | Unary (op, p) -> fprintf ppf "(%s%a)" op output p
   | Tup [] -> output_string ppf "()"
   | Tup (x :: xs) ->
     fprintf ppf "(%a" output x;

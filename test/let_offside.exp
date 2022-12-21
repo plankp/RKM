@@ -11,4 +11,4 @@ let rec { x = a; y = b; } in z
 let rec { x = a; y = (b c); g = ((h i) j); } in q
 let rec { x = a; y = (b c); g = ((h i) j); } in q
 let { rev xs = let rec { loop acc xs = match xs with { Nil -> acc; (Cons x xs) -> ((loop ((cons x) acc)) xs); }; } in ((loop empty_list) xs); } in rev
-let { (++) x y = (x, y); } in ((++ p q), (((++) p) q))
+let { (++) x y = (x, y); } in ((p ++ q), (((++) p) q))
