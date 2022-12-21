@@ -4,7 +4,8 @@ match ((Cons x) Nil) with
 
 let find p xs =
       let rec loop xs = match xs with
-        x :: xs -> match p x with True -> Some x; _ -> loop xs
+        x :: xs -> if p x then Some x
+                          else loop xs
         [] -> None in loop xs in
 let any p xs = match find p xs with Some _ -> True; _ -> false
 in any q ['a', 'b', 'c'];

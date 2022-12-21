@@ -25,6 +25,9 @@ type token =
   | IN
   | MATCH
   | WITH
+  | IF
+  | THEN
+  | ELSE
   | UNDERSCORE
   | IDCTOR of string
   | IDVAR of string
@@ -56,6 +59,9 @@ let output_token ppf = function
   | IN -> fprintf ppf "IN"
   | MATCH -> fprintf ppf "MATCH"
   | WITH -> fprintf ppf "WITH"
+  | IF -> fprintf ppf "IF"
+  | THEN -> fprintf ppf "THEN"
+  | ELSE -> fprintf ppf "ELSE"
   | UNDERSCORE -> fprintf ppf "UNDERSCORE"
   | IDCTOR n -> fprintf ppf "IDCTOR: %s" n
   | IDVAR n -> fprintf ppf "IDVAR: %s" n
@@ -278,6 +284,13 @@ and expr4 m tokens =
             | [x] -> Ok (Some x, tl)
             | xs -> Ok (Some (Tup xs), tl)
     end
+    | Cons ((IF, p, f), tl) when obeys_alignment m p f ->
+      let* (k, tl) = expect_rule (expr ~-1) tl "missing condition" in
+      let* (_, tl) = expect_tok THEN tl "missing 'then'" in
+      let* (t, tl) = expect_rule (expr ~-1) tl "missing 'then' clause" in
+      let* (_, tl) = expect_tok ELSE tl "missing 'else'" in
+      let* (f, tl) = expect_rule (expr m) tl "missing 'else' clause" in
+      Ok (Some (Cond (k, t, f)), tl)
     | Cons ((LET, p, f), tl) when obeys_alignment m p f ->
       let (recur, tl) = maybe_tok REC tl in
       let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in

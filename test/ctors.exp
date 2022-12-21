@@ -1,2 +1,2 @@
 match ((Cons x) Nil) with { ((Cons (-2) xs)|(Cons 3 xs)) -> "Ok"; _ -> "Else"; }
-let { find p xs = let rec { loop xs = match xs with { ((::) x xs) -> match (p x) with { True -> (Some x); _ -> (loop xs); }; [] -> None; }; } in (loop xs); } in let { any p xs = match ((find p) xs) with { (Some _) -> True; _ -> false; }; } in ((any q) ((::) '\u0061' ((::) '\u0062' ((::) '\u0063' []))))
+let { find p xs = let rec { loop xs = match xs with { ((::) x xs) -> if (p x) then (Some x) else (loop xs); [] -> None; }; } in (loop xs); } in let { any p xs = match ((find p) xs) with { (Some _) -> True; _ -> false; }; } in ((any q) ((::) '\u0061' ((::) '\u0062' ((::) '\u0063' []))))

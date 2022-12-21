@@ -11,6 +11,7 @@ type ast_expr =
   | Binary of string * ast_expr * ast_expr
   | Let of bool * ast_vdef list * ast_expr
   | Case of ast_expr * (ast_pat * ast_expr) list
+  | Cond of ast_expr * ast_expr * ast_expr
 
 and ast_pat =
   | Cap of string option
@@ -54,7 +55,9 @@ let rec output ppf = function
   | Case (s, cases) ->
     fprintf ppf "match %a with {" output s;
     List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output e) cases;
-    output_string ppf " }";
+    output_string ppf " }"
+  | Cond (k, t, f) ->
+    fprintf ppf "if %a then %a else %a" output k output t output f
 
 and output_pat ppf = function
   | Cap None -> output_string ppf "_"

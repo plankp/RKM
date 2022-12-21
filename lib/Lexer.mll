@@ -76,9 +76,12 @@ rule read pos first = parse
   (* keywords and literals *)
   | "match" { (first, pos, movecol pos 5, MATCH) }
   | "with" { (first, pos, movecol pos 4, WITH) }
+  | "then" { (first, pos, movecol pos 4, THEN) }
+  | "else" { (first, pos, movecol pos 4, ELSE) }
   | "let" { (first, pos, movecol pos 3, LET) }
   | "rec" { (first, pos, movecol pos 3, REC) }
   | "in" { (first, pos, movecol pos 2, IN) }
+  | "if" { (first, pos, movecol pos 2, IF) }
   | '_' { (first, pos, movecol pos 1, UNDERSCORE) }
   | '\'' { read_char [] first pos (movecol pos 1) lexbuf }
   | '\"' { read_string (Buffer.create 32) first pos (movecol pos 1) lexbuf }
