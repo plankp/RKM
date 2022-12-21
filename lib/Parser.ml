@@ -124,13 +124,13 @@ let parse_many ?(m = ~-1) rule tokens =
 let parse_block rule tokens =
   let parse_entries m tokens =
     let rec loop acc allow_semi tokens =
-      let tl = match tokens () with
-        | Cons ((SEMI, p, f), tl) when allow_semi && obeys_alignment m p f -> tl
-        | v -> fun () -> v in
+      let (sep, tl) = match tokens () with
+        | Cons ((SEMI, p, f) as sep, tl) when allow_semi && obeys_alignment m p f -> ([sep], tl)
+        | v -> ([], fun () -> v) in
       let* (e, tl) = rule m tl in
       match e with
         | Some e -> loop (e :: acc) true tl
-        | None -> Ok (List.rev acc, tl) in
+        | None -> Ok (List.rev acc, unfetch_tokens sep tl) in
     loop [] false tokens in
 
   match tokens () with
@@ -165,19 +165,7 @@ let rec prog tokens =
   parse_block expr tokens
 
 and expr m tokens =
-  match tokens () with
-    | Cons ((LET, p, f), tl) when obeys_alignment m p f ->
-      let (recur, tl) = maybe_tok REC tl in
-      let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
-      let* (_, tl) = expect_tok IN tl "missing 'in'" in
-      let* (e, tl) = expect_rule (expr m) tl "missing body" in
-      Ok (Some (Let (recur, vb, e)), tl)
-    | Cons ((MATCH, p, f), tl) when obeys_alignment m p f ->
-      let* (s, tl) = expect_rule (expr ~-1) tl "missing scrutinee" in
-      let* (_, tl) = expect_tok WITH tl "missing 'with'" in
-      let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
-      Ok (Some (Case (s, cases)), tl)
-    | v -> expr2_infix m (fun () -> v)
+  expr2_infix m tokens
 
 and expr2_infix m tokens =
   let* (lhs, tl) = expr2_prefix m tokens in
@@ -296,6 +284,17 @@ and expr4 m tokens =
       let* (e, tl) = expect_rule (expr m) tl "missing expression" in
       Ok (Some (Lam (args, e)), tl)
     end
+    | Cons ((LET, p, f), tl) when obeys_alignment m p f ->
+      let (recur, tl) = maybe_tok REC tl in
+      let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
+      let* (_, tl) = expect_tok IN tl "missing 'in'" in
+      let* (e, tl) = expect_rule (expr m) tl "missing body" in
+      Ok (Some (Let (recur, vb, e)), tl)
+    | Cons ((MATCH, p, f), tl) when obeys_alignment m p f ->
+      let* (s, tl) = expect_rule (expr ~-1) tl "missing scrutinee" in
+      let* (_, tl) = expect_tok WITH tl "missing 'with'" in
+      let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
+      Ok (Some (Case (s, cases)), tl)
 
     | v -> Ok (None, fun () -> v)
 
