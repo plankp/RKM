@@ -9,6 +9,8 @@ type token =
 (* set of symbols *)
   | LPAREN
   | RPAREN
+  | RSQUARE
+  | LSQUARE
   | LCURLY
   | RCURLY
   | SEMI
@@ -25,6 +27,9 @@ type token =
   | UNDERSCORE
   | IDCTOR of string
   | IDVAR of string
+  | INT of Z.t
+  | STR of string
+  | CHAR of Uchar.t
 
 type position = {
   lineno : int;
@@ -37,6 +42,8 @@ let output_token ppf = function
   | EOF -> fprintf ppf "EOF"
   | LPAREN -> fprintf ppf "LPAREN"
   | RPAREN -> fprintf ppf "RPAREN"
+  | LSQUARE -> fprintf ppf "LSQUARE"
+  | RSQUARE -> fprintf ppf "RSQUARE"
   | LCURLY -> fprintf ppf "LCURLY"
   | RCURLY -> fprintf ppf "RCURLY"
   | ARROW -> fprintf ppf "ARROW"
@@ -51,6 +58,9 @@ let output_token ppf = function
   | IDCTOR n -> fprintf ppf "IDCTOR: %s" n
   | IDVAR n -> fprintf ppf "IDVAR: %s" n
   | OPSEQ s -> fprintf ppf "OPSEQ: %s" s
+  | INT z -> fprintf ppf "INT: %a" Z.output z
+  | STR s -> fprintf ppf "STR: %S" s
+  | CHAR c -> fprintf ppf "CHAR: U+%04X" (Uchar.to_int c)
 
 let ( let* ) = Result.bind
 
@@ -128,6 +138,21 @@ let parse_block rule tokens =
       Ok (acc, tl)
     | Cons ((_, p, _), _) as v -> parse_entries p.colno (fun () -> v)
     | _ -> Error (dummy_pos, "missing aligned block")
+
+let parse_cseq rule tokens err =
+  (* unlike when parsed inline, we can't rely on the closing parenthesis or
+   * the like to decide if we've reached the end of the sequence *)
+  let* (e, tl) = rule ~-1 tokens in
+  match e with
+    | None -> Ok ([], tl)
+    | Some e ->
+      let rec loop acc tl =
+        let (delimed, tl) = maybe_tok COMMA tl in
+        if delimed then
+          let* (e, tl) = expect_rule (rule ~-1) tl err in
+          loop (e :: acc) tl
+        else Ok (List.rev acc, tl) in
+      loop [e] tl
 
 let dump_tokens tokens =
   let iterf (tok, p, _) =
@@ -212,39 +237,56 @@ and expr2_prefix m tokens =
   loop [] tokens
 
 and expr3 m tokens =
-  let* (f, tl) = expr4 m tokens in
-  match f with
-    | Some f ->
-      let rec loop f tl =
-        let* (v, tl) = expr4 m tl in
-        match v with
-          | Some v -> loop (App (f, v)) tl
-          | None -> Ok (Some f, tl) in
-      loop f tl
-    | t -> Ok (t, tl)
+  (* slight annoyance where we want to treat ((Ctor) x y) as a function
+   * application but (Ctor x y) as a direct construction (assuming it's
+   * saturated). this makes a difference since one is a syntactic value and
+   * the other is not *)
+  match tokens () with
+    | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
+      let* (args, tl) = parse_many m expr4 tl in
+      Ok (Some (Ast.Cons (k, args)), tl)
+    | v ->
+      let* (f, tl) = expr4 m (fun () -> v) in
+      match f with
+        | Some f ->
+          let rec loop f tl =
+            let* (v, tl) = expr4 m tl in
+            match v with
+              | Some v -> loop (App (f, v)) tl
+              | None -> Ok (Some f, tl) in
+          loop f tl
+        | t -> Ok (t, tl)
 
 and expr4 m tokens =
   match tokens () with
     | Cons ((IDVAR v, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Var v), tl)
+    | Cons ((IDCTOR v, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Ast.Cons (v, [])), tl)
+    | Cons ((STR s, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Lit (LitStr s)), tl)
+    | Cons ((INT z, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Lit (LitInt z)), tl)
+    | Cons ((CHAR z, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Lit (LitChar z)), tl)
+    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f -> begin
+      let* (xs, tl) = parse_cseq expr tl "missing expression" in
+      let* (_, tl) = expect_tok RSQUARE tl "unclosed list expression" in
+      let foldf x xs = Ast.Cons ("(::)", [x; xs]) in
+      Ok (Some (List.fold_right foldf xs (Ast.Cons ("[]", []))), tl)
+    end
     | Cons ((LPAREN, p, f), tl) when obeys_alignment m p f -> begin
       (* parenthesized expressions are free-form *)
       match fetch_tokens 2 tl with
         | ((OPSEQ op, _, _) :: (RPAREN, _, _) :: xs, tl) ->
           Ok (Some (Var ("(" ^ op ^ ")")), unfetch_tokens xs tl)
-        | ((RPAREN, _, _) :: xs, tl) ->
-          Ok (Some (Tup []), unfetch_tokens xs tl)
         | (xs, tl) ->
-          let rec loop acc tl =
-            let* (e, tl) = expect_rule (expr ~-1) tl "missing expression" in
-            match tl () with
-              | Cons ((RPAREN, _, _), tl) ->
-                if acc = [] then Ok (Some e, tl)
-                else Ok (Some (Tup (List.rev_append acc [e])), tl)
-              | Cons ((COMMA, _, _), tl) -> loop (e :: acc) tl
-              | Cons ((_, p, _), _) -> Error (p, "unclosed parenthesized expression")
-              | _ -> Error (dummy_pos, "unclosed parenthesized expression") in
-          loop [] (unfetch_tokens xs tl)
+          let tl = unfetch_tokens xs tl in
+          let* (xs, tl) = parse_cseq expr tl "missing expression" in
+          let* (_, tl) = expect_tok RPAREN tl "unclosed parenthesized expression" in
+          match xs with
+            | [x] -> Ok (Some x, tl)
+            | xs -> Ok (Some (Tup xs), tl)
     end
 
     | v -> Ok (None, fun () -> v)
@@ -300,10 +342,20 @@ and pat2_infix_tail lhs prec m tokens =
     | v -> Ok (lhs, fun () -> v)
 
 and pat3 m tokens =
+  (* if we wanted to exactly match the expression grammar, then the prefix (-)
+   * would need to be on a separate prec level. but since this operator is
+   * always integer negation, the prec level does not matter (since any other
+   * parse would not result in a constant integer) *)
   match tokens () with
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
       let* (args, tl) = parse_many m pat4 tl in
       Ok (Some (Decons (k, args)), tl)
+    | Cons ((OPSEQ "-", p, f), tl) when obeys_alignment m p f -> begin
+      let* (z, tl) = expect_rule (pat4 m) tl "missing pattern after integer negation" in
+      match z with
+        | Match (LitInt z) -> Ok (Some (Match (LitInt (Z.neg z))), tl)
+        | _ -> Error (p, "expected constant integer after integer negation")
+    end
     | v -> pat4 m (fun () -> v)
 
 and pat4 m tokens =
@@ -314,21 +366,24 @@ and pat4 m tokens =
       Ok (Some (Cap (Some n)), tl)
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Decons (k, [])), tl)
+    | Cons ((STR s, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Match (LitStr s)), tl)
+    | Cons ((INT z, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Match (LitInt z)), tl)
+    | Cons ((CHAR z, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Match (LitChar z)), tl)
+    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f -> begin
+      let* (xs, tl) = parse_cseq pat tl "missing pattern" in
+      let* (_, tl) = expect_tok RSQUARE tl "unclosed list pattern" in
+      let foldf x xs = Decons ("(::)", [x; xs]) in
+      Ok (Some (List.fold_right foldf xs (Decons ("[]", []))), tl)
+    end
     | Cons ((LPAREN, p, f), tl) when obeys_alignment m p f -> begin
-      (* parenthesized patterns are also free-form *)
-      match tl () with
-        | Cons ((RPAREN, _, _), tl) -> Ok (Some (Unpack []), tl)
-        | v ->
-          let rec loop acc tl =
-            let* (e, tl) = expect_rule (pat ~-1) tl "missing pattern" in
-            match tl () with
-              | Cons ((RPAREN, _, _), tl) ->
-                if acc = [] then Ok (Some e, tl)
-                else Ok (Some (Unpack (List.rev_append acc [e])), tl)
-              | Cons ((COMMA, _, _), tl) -> loop (e :: acc) tl
-              | Cons ((_, p, _), _) -> Error (p, "unclosed parenthesized pattern")
-              | _ -> Error (dummy_pos, "unclosed parenthesized pattern") in
-          loop [] (fun () -> v)
+      let* (xs, tl) = parse_cseq pat tl "missing pattern" in
+      let* (_, tl) = expect_tok RPAREN tl "unclosed parenthesized pattern" in
+      match xs with
+        | [x] -> Ok (Some x, tl)
+        | xs -> Ok (Some (Unpack xs), tl)
     end
 
     | v -> Ok (None, fun () -> v)

@@ -42,3 +42,12 @@
 (rule
  (alias runtest)
  (action (diff pat_prec.exp pat_prec.out)))
+
+(rule
+ (with-stdout-to ctors.out
+  (with-stdin-from ctors.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff ctors.exp ctors.out)))

@@ -26,7 +26,7 @@ match s1 with
    match s2 with I -> i
 
 // gives { A; B { I }; J; C { I } }
-match s1 with A -> a
+match s1 with A -> a; // semicolon needed here to avoid A -> (a B)
                B -> match s2 with I -> i
                                  J -> j
               C -> match s2 with I -> i
