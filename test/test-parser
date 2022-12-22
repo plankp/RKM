@@ -1,7 +1,7 @@
 (rule
  (with-stdout-to top_offside.out
   (with-stdin-from top_offside.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)
@@ -10,7 +10,7 @@
 (rule
  (with-stdout-to let_offside.out
   (with-stdin-from let_offside.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)
@@ -19,7 +19,7 @@
 (rule
  (with-stdout-to match_offside.out
   (with-stdin-from match_offside.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)
@@ -28,7 +28,7 @@
 (rule
  (with-stdout-to expr_prec.out
   (with-stdin-from expr_prec.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)
@@ -37,7 +37,7 @@
 (rule
  (with-stdout-to pat_prec.out
   (with-stdin-from pat_prec.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)
@@ -46,7 +46,7 @@
 (rule
  (with-stdout-to ctors.out
   (with-stdin-from ctors.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)
@@ -55,7 +55,7 @@
 (rule
  (with-stdout-to type_annot.out
   (with-stdin-from type_annot.in
-   (run ./test.exe))))
+   (run ./GenAst.exe))))
 
 (rule
  (alias runtest)

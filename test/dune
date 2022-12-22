@@ -1,5 +1,5 @@
 (test
- (name test)
+ (name GenAst)
  (libraries rkm))
 
 (include test-parser)
