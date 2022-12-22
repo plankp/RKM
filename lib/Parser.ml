@@ -15,6 +15,7 @@ type token =
   | RCURLY
   | SEMI
   | COMMA
+  | COLON
   | SLASH
   | ARROW
   | OPSEQ of string
@@ -53,6 +54,7 @@ let output_token ppf = function
   | SLASH -> fprintf ppf "SLASH"
   | ARROW -> fprintf ppf "ARROW"
   | COMMA -> fprintf ppf "COMMA"
+  | COLON -> fprintf ppf "COLON"
   | SEMI -> fprintf ppf "SEMI"
   | LET -> fprintf ppf "LET"
   | REC -> fprintf ppf "REC"
@@ -171,7 +173,15 @@ let rec prog tokens =
   parse_block expr tokens
 
 and expr m tokens =
-  expr2_infix m tokens
+  let* (e, tl) = expr2_infix m tokens in
+  match e with
+    | Some e ->
+      let (found, tl) = maybe_tok ~m COLON tl in
+      if found then
+        let* (annot, tl) = expect_rule (annot m) tl "missing type annotation" in
+        Ok (Some (ExprTyped (e, annot)), tl)
+      else Ok (Some e, tl)
+    | t -> Ok (t, tl)
 
 and expr2_infix m tokens =
   let* (lhs, tl) = expr2_prefix m tokens in
@@ -323,10 +333,16 @@ and binding m tokens =
   let tail n m tl =
     (* setup the alignment to be just after the variable *)
     let m = if m = ~-1 then m else m + 1 in
-    let* (args, tl) = parse_many ~m pat4 tl in
-    let* (_, tl) = expect_tok ~m (OPSEQ "=") tl "missing '='" in
-    let* (e, tl) = expect_rule (expr m) tl "missing initializer" in
-    Ok (Some (DefValue (n, args, e)), tl) in
+    let (found, tl) = maybe_tok ~m COLON tl in
+    if found then begin
+      let* (annot, tl) = expect_rule (annot m) tl "missing type annotation" in
+      Ok (Some (DefAnnot (n, annot)), tl)
+    end else begin
+      let* (args, tl) = parse_many ~m pat4 tl in
+      let* (_, tl) = expect_tok ~m (OPSEQ "=") tl "missing '='" in
+      let* (e, tl) = expect_rule (expr m) tl "missing initializer" in
+      Ok (Some (DefValue (n, args, e)), tl)
+    end in
 
   match fetch_tokens 3 tokens with
     | ((LPAREN, p, f) :: (OPSEQ op, _, _) :: (RPAREN, _, _) :: xs, tl) when obeys_alignment m p f ->
@@ -347,7 +363,15 @@ and case m tokens =
       Ok (Some (p, e), tl)
 
 and pat m tokens =
-  pat2_infix m tokens
+  let* (p, tl) = pat2_infix m tokens in
+  match p with
+    | Some p ->
+      let (found, tl) = maybe_tok ~m COLON tl in
+      if found then
+        let* (annot, tl) = expect_rule (annot m) tl "missing type annotation" in
+        Ok (Some (PatternTyped (p, annot)), tl)
+      else Ok (Some p, tl)
+    | t -> Ok (t, tl)
 
 and pat2_infix m tokens =
   let* (lhs, tl) = pat3 m tokens in
@@ -412,6 +436,59 @@ and pat4 m tokens =
       match xs with
         | [x] -> Ok (Some x, tl)
         | xs -> Ok (Some (Unpack xs), tl)
+    end
+
+    | v -> Ok (None, fun () -> v)
+
+and annot m tokens =
+  let* (a, tl) = annot2 m tokens in
+  match a with
+    | Some a ->
+      let (found, tl) = maybe_tok ARROW tl in
+      if found then
+        let* (r, tl) = expect_rule (annot m) tl "missing return type" in
+        Ok (Some (TypeApp (TypeApp (TypeCtor "(->)", a), r)), tl)
+      else Ok (Some a, tl)
+    | t -> Ok (t, tl)
+
+and annot2 m tokens =
+  let* (f, tl) = annot3 m tokens in
+  match f with
+    | Some f ->
+      let rec loop acc tl =
+        let* (e, tl) = annot3 m tl in
+        match e with
+          | Some e -> loop (TypeApp (acc, e)) tl
+          | None -> Ok (Some acc, tl) in
+      loop f tl
+    | t -> Ok (t, tl)
+
+and annot3 m tokens =
+  match tokens () with
+    | Cons ((UNDERSCORE, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some TypeIgn, tl)
+    | Cons ((IDVAR n, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (TypeVar n), tl)
+    | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (TypeCtor k), tl)
+    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f -> begin
+      let* (e, tl) = annot ~-1 tl in
+      let* (_, tl) = expect_tok RSQUARE tl "unclosed list type" in
+      match e with
+        | Some e -> Ok (Some (TypeApp (TypeCtor "[]", e)), tl)
+        | None -> Ok (Some (TypeCtor "[]"), tl)
+    end
+    | Cons ((LPAREN, p, f), tl) when obeys_alignment m p f -> begin
+      match fetch_tokens 2 tl with
+        | ((ARROW, _, _) :: (RPAREN, _, _) :: xs, tl) ->
+          Ok (Some (TypeCtor "(->)"), unfetch_tokens xs tl)
+        | (xs, tl) ->
+          let tl = unfetch_tokens xs tl in
+          let* (xs, tl) = parse_cseq annot tl "missing type" in
+          let* (_, tl) = expect_tok RPAREN tl "unclosed parenthesized type" in
+          match xs with
+            | [x] -> Ok (Some x, tl)
+            | xs -> Ok (Some (TypeTup xs), tl)
     end
 
     | v -> Ok (None, fun () -> v)

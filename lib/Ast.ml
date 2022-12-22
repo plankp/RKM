@@ -12,6 +12,7 @@ type ast_expr =
   | Let of bool * ast_vdef list * ast_expr
   | Case of ast_expr * (ast_pat * ast_expr) list
   | Cond of ast_expr * ast_expr * ast_expr
+  | ExprTyped of ast_expr * ast_typ
 
 and ast_pat =
   | Cap of string option
@@ -19,9 +20,18 @@ and ast_pat =
   | Decons of string * ast_pat list
   | Unpack of ast_pat list
   | Alternate of ast_pat * ast_pat
+  | PatternTyped of ast_pat * ast_typ
+
+and ast_typ =
+  | TypeIgn
+  | TypeVar of string
+  | TypeCtor of string
+  | TypeApp of ast_typ * ast_typ
+  | TypeTup of ast_typ list
 
 and ast_vdef =
   | DefValue of string * ast_pat list * ast_expr
+  | DefAnnot of string * ast_typ
 
 and ast_lit =
   | LitInt of Z.t
@@ -58,6 +68,8 @@ let rec output ppf = function
     output_string ppf " }"
   | Cond (k, t, f) ->
     fprintf ppf "if %a then %a else %a" output k output t output f
+  | ExprTyped (e, t) ->
+    fprintf ppf "(%a : %a)" output e output_typ t
 
 and output_pat ppf = function
   | Cap None -> output_string ppf "_"
@@ -74,12 +86,26 @@ and output_pat ppf = function
     fprintf ppf "(%a" output_pat x;
     List.iter (fprintf ppf ", %a" output_pat) xs;
     output_string ppf ")"
+  | PatternTyped (p, t) ->
+    fprintf ppf "(%a : %a)" output_pat p output_typ t
+
+and output_typ ppf = function
+  | TypeIgn -> output_string ppf "_"
+  | TypeVar n | TypeCtor n -> output_string ppf n
+  | TypeApp (p, q) -> fprintf ppf "(%a %a)" output_typ p output_typ q
+  | TypeTup [] -> output_string ppf "()"
+  | TypeTup (x :: xs) ->
+    fprintf ppf "(%a" output_typ x;
+    List.iter (fprintf ppf ", %a" output_typ) xs;
+    output_string ppf ")"
 
 and output_vdef ppf = function
   | DefValue (n, args, e) ->
     output_string ppf n;
     List.iter (fprintf ppf " %a" output_pat) args;
     fprintf ppf " = %a" output e
+  | DefAnnot (n, t) ->
+    fprintf ppf "%s : %a" n output_typ t
 
 and output_lit ppf = function
   | LitInt n ->

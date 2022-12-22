@@ -51,3 +51,12 @@
 (rule
  (alias runtest)
  (action (diff ctors.exp ctors.out)))
+
+(rule
+ (with-stdout-to type_annot.out
+  (with-stdin-from type_annot.in
+   (run ./test.exe))))
+
+(rule
+ (alias runtest)
+ (action (diff type_annot.exp type_annot.out)))

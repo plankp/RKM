@@ -1,0 +1,4 @@
+let { f = ((10 + 20) : Int); } in f
+let { empty = (\$0 -> match $0 with { ([] : ([] a)) -> True; ((((::) _ _)|_) : ([] a)) -> False; }); } in empty
+let { pack (x : a) (y : a) = (x, y); } in pack
+let { pack : (((->) a) (((->) b) (a, b))); pack x y = (x, y); } in pack

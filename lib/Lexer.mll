@@ -58,6 +58,8 @@ rule read pos first = parse
   | newline { read (new_line pos) true lexbuf }
 
   (* set of symbols *)
+  | "->" { (first, pos, movecol pos 2, ARROW) }
+  | "::" { (first, pos, movecol pos 2, OPSEQ "::") }
   | '(' { (first, pos, movecol pos 1, LPAREN) }
   | ')' { (first, pos, movecol pos 1, RPAREN) }
   | '[' { (first, pos, movecol pos 1, LSQUARE) }
@@ -66,9 +68,8 @@ rule read pos first = parse
   | '}' { (first, pos, movecol pos 1, RCURLY) }
   | ';' { (first, pos, movecol pos 1, SEMI) }
   | ',' { (first, pos, movecol pos 1, COMMA) }
+  | ':' { (first, pos, movecol pos 1, COLON) }
   | '\\' { (first, pos, movecol pos 1, SLASH) }
-  | "->" { (first, pos, movecol pos 2, ARROW) }
-  | "::" { (first, pos, movecol pos 2, OPSEQ "::") }
   | opchar+ {
     let s = Lexing.lexeme lexbuf in
     (first, pos, movecol pos (String.length s), OPSEQ s) }
