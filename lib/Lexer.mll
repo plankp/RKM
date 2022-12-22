@@ -58,6 +58,7 @@ rule read pos first = parse
   | newline { read (new_line pos) true lexbuf }
 
   (* set of symbols *)
+  | "=>" { (first, pos, movecol pos 2, IMPLIES) }
   | "->" { (first, pos, movecol pos 2, ARROW) }
   | "::" { (first, pos, movecol pos 2, OPSEQ "::") }
   | '(' { (first, pos, movecol pos 1, LPAREN) }
@@ -75,10 +76,16 @@ rule read pos first = parse
     (first, pos, movecol pos (String.length s), OPSEQ s) }
 
   (* keywords and literals *)
+  | "extern" { (first, pos, movecol pos 6, EXTERN) }
+  | "trait" { (first, pos, movecol pos 5, TRAIT) }
   | "match" { (first, pos, movecol pos 5, MATCH) }
   | "with" { (first, pos, movecol pos 4, WITH) }
   | "then" { (first, pos, movecol pos 4, THEN) }
   | "else" { (first, pos, movecol pos 4, ELSE) }
+  | "data" { (first, pos, movecol pos 4, DATA) }
+  | "type" { (first, pos, movecol pos 4, TYPE) }
+  | "impl" { (first, pos, movecol pos 4, IMPL) }
+  | "def" { (first, pos, movecol pos 3, DEF) }
   | "let" { (first, pos, movecol pos 3, LET) }
   | "rec" { (first, pos, movecol pos 3, REC) }
   | "in" { (first, pos, movecol pos 2, IN) }

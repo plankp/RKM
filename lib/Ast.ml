@@ -1,6 +1,13 @@
 open Printf
 
-type ast_expr =
+type ast_toplevel =
+  | TopExpr of ast_expr
+  | TopDef of ast_vdef list
+  | TopExtern of (string * ast_typ * string) list
+  | TopAlias of (string * string list * ast_typ) list
+  | TopData of (string * string list * (string * ast_typ list) list) list
+
+and ast_expr =
   | Var of string
   | Lit of ast_lit
   | Tup of ast_expr list
@@ -41,48 +48,80 @@ and ast_lit =
   | LitStr of string
   | LitChar of Uchar.t
 
-let output_list fmt ppf xs =
+let output_list ?(s = ",") fmt ppf xs =
   match xs with
     | [] -> ()  (* nothing to print *)
     | x :: xs ->
       fmt ppf x;
-      List.iter (fprintf ppf ", %a" fmt) xs
+      List.iter (fprintf ppf "%s %a" s fmt) xs
 
-let rec output ppf = function
+let rec output_top ppf = function
+  | TopExpr e -> output_expr ppf e
+  | TopDef vb ->
+    output_string ppf "def {";
+    List.iter (fprintf ppf " %a;" output_vdef) vb;
+    output_string ppf " }"
+  | TopExtern vb ->
+    let iterf (n, t, s) =
+      fprintf ppf " %s : %a = %s;" n output_typ t s in
+    output_string ppf "extern {";
+    List.iter iterf vb;
+    output_string ppf " }"
+  | TopAlias vb ->
+    let iterf (n, args, t) =
+      fprintf ppf " %s" n;
+      List.iter (fprintf ppf " %s") args;
+      fprintf ppf " = %a;" output_typ t in
+    output_string ppf "type {";
+    List.iter iterf vb;
+    output_string ppf " }"
+  | TopData vb ->
+    let iterf (n, args, ctors) =
+      fprintf ppf " %s" n;
+      List.iter (fprintf ppf " %s") args;
+      let helper ppf (n, args) =
+        fprintf ppf "%s" n;
+        List.iter (fprintf ppf " %a" output_typ) args in
+      fprintf ppf " = %a;" (output_list ~s:" |" helper) ctors in
+    output_string ppf "data {";
+    List.iter iterf vb;
+    output_string ppf " }"
+
+and output_expr ppf = function
   | Var x -> output_string ppf x
   | Lit lit -> output_lit ppf lit
-  | App (p, q) -> fprintf ppf "(%a %a)" output p output q
-  | Binary (op, p, q) -> fprintf ppf "(%a %s %a)" output p op output q
-  | Unary (op, p) -> fprintf ppf "(%s%a)" op output p
+  | App (p, q) -> fprintf ppf "(%a %a)" output_expr p output_expr q
+  | Binary (op, p, q) -> fprintf ppf "(%a %s %a)" output_expr p op output_expr q
+  | Unary (op, p) -> fprintf ppf "(%s%a)" op output_expr p
   | Lam (args, e) ->
     output_string ppf "(\\";
     List.iter (fprintf ppf "%a " output_pat) args;
-    fprintf ppf "-> %a)" output e;
+    fprintf ppf "-> %a)" output_expr e;
   | LamCase cases ->
     output_string ppf "(\\match {";
-    List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output e) cases;
+    List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output_expr e) cases;
     output_string ppf " })"
   | Cons (k, []) -> output_string ppf k
   | Cons (k, xs) ->
     fprintf ppf "(%s" k;
-    List.iter (fprintf ppf " %a" output) xs;
+    List.iter (fprintf ppf " %a" output_expr) xs;
     output_string ppf ")"
   | Tup elts ->
-    fprintf ppf "(%a)" (output_list output) elts
+    fprintf ppf "(%a)" (output_list output_expr) elts
   | List elts ->
-    fprintf ppf "[%a]" (output_list output) elts
+    fprintf ppf "[%a]" (output_list output_expr) elts
   | Let (recur, vb, e) ->
     output_string ppf (if recur then "let rec {" else "let {");
     List.iter (fprintf ppf " %a;" output_vdef) vb;
-    fprintf ppf " } in %a" output e
+    fprintf ppf " } in %a" output_expr e
   | Case (s, cases) ->
-    fprintf ppf "match %a with {" output s;
-    List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output e) cases;
+    fprintf ppf "match %a with {" output_expr s;
+    List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output_expr e) cases;
     output_string ppf " }"
   | Cond (k, t, f) ->
-    fprintf ppf "if %a then %a else %a" output k output t output f
+    fprintf ppf "if %a then %a else %a" output_expr k output_expr t output_expr f
   | ExprTyped (e, t) ->
-    fprintf ppf "(%a : %a)" output e output_typ t
+    fprintf ppf "(%a : %a)" output_expr e output_typ t
 
 and output_pat ppf = function
   | Cap None -> output_string ppf "_"
@@ -112,7 +151,7 @@ and output_vdef ppf = function
   | DefValue (n, args, e) ->
     output_string ppf n;
     List.iter (fprintf ppf " %a" output_pat) args;
-    fprintf ppf " = %a" output e
+    fprintf ppf " = %a" output_expr e
   | DefAnnot (n, t) ->
     fprintf ppf "%s : %a" n output_typ t
 

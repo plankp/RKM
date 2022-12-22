@@ -18,6 +18,7 @@ type token =
   | COLON
   | SLASH
   | ARROW
+  | IMPLIES
   | OPSEQ of string
 
 (* keywords and literals *)
@@ -29,6 +30,12 @@ type token =
   | IF
   | THEN
   | ELSE
+  | EXTERN
+  | DEF
+  | DATA
+  | TYPE
+  | TRAIT
+  | IMPL
   | UNDERSCORE
   | IDCTOR of string
   | IDVAR of string
@@ -53,6 +60,7 @@ let output_token ppf = function
   | RCURLY -> fprintf ppf "RCURLY"
   | SLASH -> fprintf ppf "SLASH"
   | ARROW -> fprintf ppf "ARROW"
+  | IMPLIES -> fprintf ppf "IMPLIES"
   | COMMA -> fprintf ppf "COMMA"
   | COLON -> fprintf ppf "COLON"
   | SEMI -> fprintf ppf "SEMI"
@@ -64,6 +72,12 @@ let output_token ppf = function
   | IF -> fprintf ppf "IF"
   | THEN -> fprintf ppf "THEN"
   | ELSE -> fprintf ppf "ELSE"
+  | EXTERN -> fprintf ppf "EXTERN"
+  | DEF -> fprintf ppf "DEF"
+  | DATA -> fprintf ppf "DATA"
+  | TYPE -> fprintf ppf "TYPE"
+  | TRAIT -> fprintf ppf "TRAIT"
+  | IMPL -> fprintf ppf "IMPL"
   | UNDERSCORE -> fprintf ppf "UNDERSCORE"
   | IDCTOR n -> fprintf ppf "IDCTOR: %s" n
   | IDVAR n -> fprintf ppf "IDVAR: %s" n
@@ -149,20 +163,27 @@ let parse_block rule tokens =
     | Cons ((_, p, _), _) as v -> parse_entries p.colno (fun () -> v)
     | _ -> Error (dummy_pos, "missing aligned block")
 
-let parse_cseq rule tokens err =
+let parse_cseq ?(sep = COMMA) ?(m = ~-1) rule tokens err =
   (* unlike when parsed inline, we can't rely on the closing parenthesis or
    * the like to decide if we've reached the end of the sequence *)
-  let* (e, tl) = rule ~-1 tokens in
+  let* (e, tl) = rule m tokens in
   match e with
     | None -> Ok ([], tl)
     | Some e ->
       let rec loop acc tl =
-        let (delimed, tl) = maybe_tok COMMA tl in
+        let (delimed, tl) = maybe_tok ~m sep tl in
         if delimed then
-          let* (e, tl) = expect_rule (rule ~-1) tl err in
+          let* (e, tl) = expect_rule (rule m) tl err in
           loop (e :: acc) tl
         else Ok (List.rev acc, tl) in
       loop [e] tl
+
+let parse_many_idvars ?(m = ~-1) tokens =
+  let rec loop acc tl =
+    match tl () with
+      | Cons ((IDVAR n, p, f), tl) when obeys_alignment m p f -> loop (n :: acc) tl
+      | v -> (List.rev acc, fun () -> v) in
+  loop [] tokens
 
 let dump_tokens tokens =
   let iterf (tok, p, _) =
@@ -170,7 +191,78 @@ let dump_tokens tokens =
   Seq.iter iterf tokens
 
 let rec prog tokens =
-  parse_block expr tokens
+  parse_block toplevel tokens
+
+and toplevel m tokens =
+  match tokens () with
+    | Cons ((DEF, p, f), tl) when obeys_alignment m p f ->
+      let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
+      Ok (Some (TopDef vb), tl)
+    | Cons ((EXTERN, p, f), tl) when obeys_alignment m p f ->
+      let* (vb, tl) = expect_some (parse_block extern_def) tl "missing external definitions" in
+      Ok (Some (TopExtern vb), tl)
+    | Cons ((TYPE, p, f), tl) when obeys_alignment m p f ->
+      let* (vb, tl) = expect_some (parse_block type_alias) tl "missing type aliases" in
+      Ok (Some (TopAlias vb), tl)
+    | Cons ((DATA, p, f), tl) when obeys_alignment m p f ->
+      let* (vb, tl) = expect_some (parse_block data_def) tl "missing data definitions" in
+      Ok (Some (TopData vb), tl)
+(*
+    | Cons ((TRAIT, p, f), tl) when obeys_alignment m p f ->
+    | Cons ((IMPL, p, f), tl) when obeys_alignment m p f ->
+*)
+    | v ->
+      let* (e, tl) = expr m (fun () -> v) in
+      Ok (Option.map (fun e -> TopExpr e) e, tl)
+
+and extern_def m tokens =
+  match tokens () with
+    | Cons ((IDVAR n, p, f), tl) when obeys_alignment m p f -> begin
+      (* setup the alignment to be just after the variable *)
+      let m = if m = ~-1 then m else m + 1 in
+      let* (_, tl) = expect_tok ~m COLON tl "missing ':'" in
+      let* (annot, tl) = expect_rule (annot m) tl "missing type annotation" in
+      let* (_, tl) = expect_tok ~m (OPSEQ "=") tl "missing '='" in
+      match tl () with
+        | Cons ((STR extname, p, f), tl) when obeys_alignment m p f ->
+          Ok (Some (n, annot, extname), tl)
+        | Cons ((_, p, _), _) -> Error (p, "missing external definition name")
+        | _ -> Error (dummy_pos, "missing external definition name")
+    end
+    | v -> Ok (None, fun () -> v)
+
+and type_alias m tokens =
+  match tokens () with
+    | Cons ((IDCTOR n, p, f), tl) when obeys_alignment m p f ->
+      (* setup the alignment to be just after the variable *)
+      let m = if m = ~-1 then m else m + 1 in
+      let (args, tl) = parse_many_idvars ~m tl in
+      let* (_, tl) = expect_tok ~m (OPSEQ "=") tl "missing '='" in
+      let* (annot, tl) = expect_rule (annot m) tl "missing type annotation" in
+      Ok (Some (n, args, annot), tl)
+    | v -> Ok (None, fun () -> v)
+
+and data_def m tokens =
+  match tokens () with
+    | Cons ((IDCTOR n, p, f), tl) when obeys_alignment m p f -> begin
+      (* setup the alignment to be just after the variable *)
+      let m = if m = ~-1 then m else m + 1 in
+      let (args, tl) = parse_many_idvars ~m tl in
+      let* (_, tl) = expect_tok ~m (OPSEQ "=") tl "missing '='" in
+      let* (ctors, tl) = parse_cseq ~sep:(OPSEQ "|") ~m ctor_def tl "missing data constructor" in
+      if ctors = [] then
+        let (p, _) = peek_position tl in
+        Error (p, "missing data constructor")
+      else Ok (Some (n, args, ctors), tl)
+    end
+    | v -> Ok (None, fun () -> v)
+
+and ctor_def m tokens =
+  match tokens () with
+    | Cons ((IDCTOR n, p, f), tl) when obeys_alignment m p f ->
+      let* (args, tl) = parse_many ~m annot3 tl in
+      Ok (Some (n, args), tl)
+    | v -> Ok (None, fun () -> v)
 
 and expr m tokens =
   let* (e, tl) = expr2_infix m tokens in
