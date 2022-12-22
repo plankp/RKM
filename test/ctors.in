@@ -9,3 +9,8 @@ let find p xs =
         [] -> None in loop xs in
 let any p xs = match find p xs with Some _ -> True; _ -> false
 in any q ['a', 'b', 'c'];
+
+\match
+  [x, y, z] -> True
+  [x] -> True
+  _ -> False;

@@ -275,12 +275,10 @@ and expr4 m tokens =
       Ok (Some (Lit (LitInt z)), tl)
     | Cons ((CHAR z, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Lit (LitChar z)), tl)
-    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f -> begin
+    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f ->
       let* (xs, tl) = parse_cseq expr tl "missing expression" in
       let* (_, tl) = expect_tok RSQUARE tl "unclosed list expression" in
-      let foldf x xs = Ast.Cons ("(::)", [x; xs]) in
-      Ok (Some (List.fold_right foldf xs (Ast.Cons ("[]", []))), tl)
-    end
+      Ok (Some (List xs), tl)
     | Cons ((LPAREN, p, f), tl) when obeys_alignment m p f -> begin
       (* parenthesized expressions are free-form *)
       match fetch_tokens 2 tl with
@@ -315,10 +313,9 @@ and expr4 m tokens =
     | Cons ((SLASH, p, f), tl) when obeys_alignment m p f ->
       let (found, tl) = maybe_tok MATCH tl in
       if found then begin
-        (* we have (\match p1 -> e1; ...) which we rewrite as
-         * (\v -> match v of ...) *)
+        (* we have a LamCase node of (\match p1 -> e1; ...) *)
         let* (cases, tl) = expect_some (parse_block case) tl "missing cases" in
-        Ok (Some (Lam ([Cap (Some "$0")], Case (Var "$0", cases))), tl)
+        Ok (Some (LamCase cases), tl)
       end else begin
         (* we have a Lam node of (\p... -> e) *)
         let* (args, tl) = expect_some (parse_many pat4) tl "missing argument pattern" in
@@ -424,18 +421,16 @@ and pat4 m tokens =
       Ok (Some (Match (LitInt z)), tl)
     | Cons ((CHAR z, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Match (LitChar z)), tl)
-    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f -> begin
+    | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f ->
       let* (xs, tl) = parse_cseq pat tl "missing pattern" in
       let* (_, tl) = expect_tok RSQUARE tl "unclosed list pattern" in
-      let foldf x xs = Decons ("(::)", [x; xs]) in
-      Ok (Some (List.fold_right foldf xs (Decons ("[]", []))), tl)
-    end
+      Ok (Some (Delist xs), tl)
     | Cons ((LPAREN, p, f), tl) when obeys_alignment m p f -> begin
       let* (xs, tl) = parse_cseq pat tl "missing pattern" in
       let* (_, tl) = expect_tok RPAREN tl "unclosed parenthesized pattern" in
       match xs with
         | [x] -> Ok (Some x, tl)
-        | xs -> Ok (Some (Unpack xs), tl)
+        | xs -> Ok (Some (Detup xs), tl)
     end
 
     | v -> Ok (None, fun () -> v)

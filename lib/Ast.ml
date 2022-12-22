@@ -4,8 +4,10 @@ type ast_expr =
   | Var of string
   | Lit of ast_lit
   | Tup of ast_expr list
+  | List of ast_expr list
   | Cons of string * ast_expr list
   | Lam of ast_pat list * ast_expr
+  | LamCase of (ast_pat * ast_expr) list
   | App of ast_expr * ast_expr
   | Unary of string * ast_expr
   | Binary of string * ast_expr * ast_expr
@@ -18,7 +20,8 @@ and ast_pat =
   | Cap of string option
   | Match of ast_lit
   | Decons of string * ast_pat list
-  | Unpack of ast_pat list
+  | Detup of ast_pat list
+  | Delist of ast_pat list
   | Alternate of ast_pat * ast_pat
   | PatternTyped of ast_pat * ast_typ
 
@@ -38,6 +41,13 @@ and ast_lit =
   | LitStr of string
   | LitChar of Uchar.t
 
+let output_list fmt ppf xs =
+  match xs with
+    | [] -> ()  (* nothing to print *)
+    | x :: xs ->
+      fmt ppf x;
+      List.iter (fprintf ppf ", %a" fmt) xs
+
 let rec output ppf = function
   | Var x -> output_string ppf x
   | Lit lit -> output_lit ppf lit
@@ -48,16 +58,19 @@ let rec output ppf = function
     output_string ppf "(\\";
     List.iter (fprintf ppf "%a " output_pat) args;
     fprintf ppf "-> %a)" output e;
+  | LamCase cases ->
+    output_string ppf "(\\match {";
+    List.iter (fun (p, e) -> fprintf ppf " %a -> %a;" output_pat p output e) cases;
+    output_string ppf " })"
   | Cons (k, []) -> output_string ppf k
   | Cons (k, xs) ->
     fprintf ppf "(%s" k;
     List.iter (fprintf ppf " %a" output) xs;
     output_string ppf ")"
-  | Tup [] -> output_string ppf "()"
-  | Tup (x :: xs) ->
-    fprintf ppf "(%a" output x;
-    List.iter (fprintf ppf ", %a" output) xs;
-    output_string ppf ")"
+  | Tup elts ->
+    fprintf ppf "(%a)" (output_list output) elts
+  | List elts ->
+    fprintf ppf "[%a]" (output_list output) elts
   | Let (recur, vb, e) ->
     output_string ppf (if recur then "let rec {" else "let {");
     List.iter (fprintf ppf " %a;" output_vdef) vb;
@@ -81,11 +94,10 @@ and output_pat ppf = function
     fprintf ppf "(%s" k;
     List.iter (fprintf ppf " %a" output_pat) xs;
     output_string ppf ")"
-  | Unpack [] -> output_string ppf "()"
-  | Unpack (x :: xs) ->
-    fprintf ppf "(%a" output_pat x;
-    List.iter (fprintf ppf ", %a" output_pat) xs;
-    output_string ppf ")"
+  | Detup elts ->
+    fprintf ppf "(%a)" (output_list output_pat) elts
+  | Delist elts ->
+    fprintf ppf "[%a]" (output_list output_pat) elts
   | PatternTyped (p, t) ->
     fprintf ppf "(%a : %a)" output_pat p output_typ t
 
@@ -93,11 +105,8 @@ and output_typ ppf = function
   | TypeIgn -> output_string ppf "_"
   | TypeVar n | TypeCtor n -> output_string ppf n
   | TypeApp (p, q) -> fprintf ppf "(%a %a)" output_typ p output_typ q
-  | TypeTup [] -> output_string ppf "()"
-  | TypeTup (x :: xs) ->
-    fprintf ppf "(%a" output_typ x;
-    List.iter (fprintf ppf ", %a" output_typ) xs;
-    output_string ppf ")"
+  | TypeTup elts ->
+    fprintf ppf "(%a)" (output_list output_typ) elts
 
 and output_vdef ppf = function
   | DefValue (n, args, e) ->
