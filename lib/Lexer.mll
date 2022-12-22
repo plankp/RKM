@@ -29,7 +29,7 @@ let new_line pos = { lineno = pos.lineno + 1; colno = 0 }
 let newline = '\n' | '\r' | "\r\n"
 let id_ctor = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let id_var = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
-let opchar = ['+' '-' '*' '/' '%' '!' '<' '=' '>' '|' '&' '^' '~' '@']
+let opchar = ['+' '-' '*' '/' '%' '!' '<' '=' '>' '|' '&' '^' '~' '@' ':']
 
 let digit_hex = ['a'-'f' 'A'-'F' '0'-'9']
 let digit_dec = ['0'-'9']
@@ -60,7 +60,6 @@ rule read pos first = parse
   (* set of symbols *)
   | "=>" { (first, pos, movecol pos 2, IMPLIES) }
   | "->" { (first, pos, movecol pos 2, ARROW) }
-  | "::" { (first, pos, movecol pos 2, OPSEQ "::") }
   | '(' { (first, pos, movecol pos 1, LPAREN) }
   | ')' { (first, pos, movecol pos 1, RPAREN) }
   | '[' { (first, pos, movecol pos 1, LSQUARE) }

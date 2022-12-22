@@ -185,10 +185,47 @@ let parse_many_idvars ?(m = ~-1) tokens =
       | v -> (List.rev acc, fun () -> v) in
   loop [] tokens
 
+let parse_infix ?(m = ~-1) op_table rule tokens err =
+  let rec climb_prec lhs prec m tokens =
+    match tokens () with
+      | Cons ((OPSEQ op, p, f), tl) as v when obeys_alignment m p f -> begin
+        match op_table op with
+          | None -> Ok (lhs, fun () -> v)
+          | Some (lhs_prec, rhs_prec, combinef) ->
+            if prec >= lhs_prec then Ok (lhs, fun () -> v)
+            else begin
+              let* (rhs, tl) = expect_rule (rule m) tl err in
+              let* (rhs, tl) = climb_prec rhs rhs_prec m tl in
+              climb_prec (combinef op lhs rhs) prec m tl
+            end
+      end
+      | v -> Ok (lhs, fun () -> v) in
+
+  let* (lhs, tl) = rule m tokens in
+  match lhs with
+    | None -> Ok (None, tl)
+    | Some lhs ->
+      let* (res, tl) = climb_prec lhs 0 m tl in
+      Ok (Some res, tl)
+
 let dump_tokens tokens =
   let iterf (tok, p, _) =
     printf "(%d, %d) %a\n" (p.lineno + 1) (p.colno + 1) output_token tok in
   Seq.iter iterf tokens
+
+let default_prec_table = function
+  | "=" -> Some (1, 0)
+  | "||" -> Some (2, 2)
+  | "&&" -> Some (3, 3)
+  | "<<" | ">>" -> Some (8, 8)
+  | op ->
+    match op.[0] with
+      | '!' | '=' | '<' | '>' -> Some (4, 4)
+      | '@' -> Some (5, 4)
+      | ':' -> Some (6, 5)
+      | '+' | '-' | '|' | '^' -> Some (7, 7)
+      | '*' | '/' | '%' | '&' -> Some (8, 8)
+      | _ -> None
 
 let rec prog tokens =
   parse_block toplevel tokens
@@ -258,11 +295,18 @@ and data_def m tokens =
     | v -> Ok (None, fun () -> v)
 
 and ctor_def m tokens =
-  match tokens () with
-    | Cons ((IDCTOR n, p, f), tl) when obeys_alignment m p f ->
+  match fetch_tokens 3 tokens with
+    | ((LPAREN, p, f) :: (OPSEQ op, q, _) :: (RPAREN, _, _) :: xs, tl) when obeys_alignment m p f ->
+      if op.[0] = ':' then
+        let tl = unfetch_tokens xs tl in
+        let* (args, tl) = parse_many ~m annot3 tl in
+        Ok (Some ("(" ^ op ^ ")", args), tl)
+      else Error (q, "This operator can only be used to name values")
+    | ((IDCTOR n, p, f) :: xs, tl) when obeys_alignment m p f ->
+      let tl = unfetch_tokens xs tl in
       let* (args, tl) = parse_many ~m annot3 tl in
       Ok (Some (n, args), tl)
-    | v -> Ok (None, fun () -> v)
+    | (xs, tl) -> Ok (None, unfetch_tokens xs tl)
 
 and expr m tokens =
   let* (e, tl) = expr2_infix m tokens in
@@ -276,62 +320,45 @@ and expr m tokens =
     | t -> Ok (t, tl)
 
 and expr2_infix m tokens =
-  let* (lhs, tl) = expr2_prefix m tokens in
-  match lhs with
-    | Some lhs ->
-      let* (res, tl) = expr2_infix_tail lhs 0 m tl in
-      Ok (Some res, tl)
-    | t -> Ok (t, tl)
+  let op_table op =
+    let combinef op l r =
+      if op.[0] = ':' then Ast.Cons ("(" ^ op ^ ")", [l; r]) else Binary (op, l, r) in
+    let n =
+      if op.[0] = ':' then String.sub op 1 (String.length op - 1) else op in
+    default_prec_table n |> Option.map (fun (l, r) -> (l, r, combinef)) in
 
-and expr2_infix_tail lhs prec m tokens =
-  (* if unknown operator, return -1
-   * if left assoc, return (level, level)
-   * if right assoc, return (level, level - 1) *)
-  let lookup_prec = function
-    | "=" -> (1, 0)
-    | "||" -> (2, 2)
-    | "&&" -> (3, 3)
-    | "::" -> (6, 5)
-    | "<<" | ">>" -> (8, 8)
-    | op ->
-      if op = "" then (~-1, ~-1)
-      else match op.[0] with
-        | '!' | '=' | '<' | '>' -> (4, 4)
-        | '@' -> (5, 4)
-        | '+' | '-' | '|' | '^' -> (7, 7)
-        | '*' | '/' | '%' | '&' -> (8, 8)
-        | _ -> (~-1, ~-1) in
-
-  match tokens () with
-    | Cons ((OPSEQ op, p, f), tl) as v when obeys_alignment m p f ->
-      let (lhs_prec, rhs_prec) = lookup_prec op in
-      if prec >= lhs_prec then Ok (lhs, fun () -> v)
-      else begin
-        let* (rhs, tl) = expect_rule (expr2_prefix m) tl "missing expression after infix operator" in
-        let* (rhs, tl) = expr2_infix_tail rhs rhs_prec m tl in
-        expr2_infix_tail (Binary (op, lhs, rhs)) prec m tl
-      end
-    | v -> Ok (lhs, fun () -> v)
+  parse_infix ~m op_table expr2_prefix tokens "missing expression after infix operator"
 
 and expr2_prefix m tokens =
-  let is_prefix = function
-    | "!" | "-" -> true
-    | v -> v <> "" && v.[0] = '~' in
+  let map_prefix = function
+  (* these operators ONLY exists for value variants and are remapped here *)
+    | "!" | "-" as op -> Some op
+    | op ->
+      (* these ones follow the usual rule of : being for ctors *)
+      if op.[0] = '~' then Some op
+      else if op.[0] = ':' && op.[1] = '~' then Some ("(" ^ op ^ ")")
+      else None in
 
   let rec loop acc tl =
+    let tail tl =
+      let* (e, tl) = expr3 m tl in
+      match e with
+        | Some e ->
+          let foldf e op =
+            if op.[0] = '(' then Ast.Cons (op, [e]) else Unary (op, e) in
+          Ok (Some (List.fold_left foldf e acc), tl)
+        | None ->
+          if acc = [] then Ok (None, tl)
+          else
+            let (p, _) = peek_position tl in
+            Error (p, "misssing expression after prefix operator") in
     match tl () with
-      | Cons ((OPSEQ op, p, f), tl) when is_prefix op && obeys_alignment m p f ->
-        loop (op :: acc) tl
-      | v ->
-        let* (e, tl) = expr3 m (fun () -> v) in
-        match e with
-          | Some e ->
-            Ok (Some (List.fold_left (fun e op -> Unary (op, e)) e acc), tl)
-          | None ->
-            if acc = [] then Ok (None, tl)
-            else
-              let (p, _) = peek_position tl in
-              Error (p, "missing expression after prefix operator") in
+      | Cons ((OPSEQ op, p, f), tl) as v when obeys_alignment m p f -> begin
+        match map_prefix op with
+          | Some op -> loop (op :: acc) tl
+          | None -> tail (fun () -> v)
+      end
+      | v -> tail (fun () -> v) in
   loop [] tokens
 
 and expr3 m tokens =
@@ -375,7 +402,10 @@ and expr4 m tokens =
       (* parenthesized expressions are free-form *)
       match fetch_tokens 2 tl with
         | ((OPSEQ op, _, _) :: (RPAREN, _, _) :: xs, tl) ->
-          Ok (Some (Var ("(" ^ op ^ ")")), unfetch_tokens xs tl)
+          let tl = unfetch_tokens xs tl in
+          let name = "(" ^ op ^ ")" in
+          if op.[0] = ':' then Ok (Some (Ast.Cons (name, [])), tl)
+          else Ok (Some (Var name), tl)
         | (xs, tl) ->
           let tl = unfetch_tokens xs tl in
           let* (xs, tl) = parse_cseq expr tl "missing expression" in
@@ -434,8 +464,11 @@ and binding m tokens =
     end in
 
   match fetch_tokens 3 tokens with
-    | ((LPAREN, p, f) :: (OPSEQ op, _, _) :: (RPAREN, _, _) :: xs, tl) when obeys_alignment m p f ->
-      tail ("(" ^ op ^ ")") m (unfetch_tokens xs tl)
+    | ((LPAREN, p, f) :: (OPSEQ op, q, _) :: (RPAREN, _, _) :: xs, tl) when obeys_alignment m p f ->
+      if op.[0] = ':' then
+        Error (q, "This operator can only be used to name data constructors")
+      else
+        tail ("(" ^ op ^ ")") m (unfetch_tokens xs tl)
     | ((IDVAR n, p, f) :: xs, tl) when obeys_alignment m p f ->
       tail n m (unfetch_tokens xs tl)
     | (xs, tl) -> Ok (None, unfetch_tokens xs tl)
@@ -463,41 +496,43 @@ and pat m tokens =
     | t -> Ok (t, tl)
 
 and pat2_infix m tokens =
-  let* (lhs, tl) = pat3 m tokens in
-  match lhs with
-    | Some lhs ->
-      let* (res, tl) = pat2_infix_tail lhs 0 m tl in
-      Ok (Some res, tl)
-    | t -> Ok (t, tl)
+  let op_table op =
+    if op.[0] <> ':' then
+      (* only | is allowed (used for alternation) *)
+      if op = "|" then Some (1, 0, fun _ l r -> Alternate (l, r)) else None
+    else
+      let combinef op l r = Decons ("(" ^ op ^ ")", [l; r]) in
+      let n = String.sub op 1 (String.length op - 1) in
+      default_prec_table n |> Option.map (fun (l, r) -> (l + 1, r + 1, combinef)) in
 
-and pat2_infix_tail lhs prec m tokens =
-  match tokens () with
-    | Cons ((OPSEQ "|", p, f), tl) when prec < 1 && obeys_alignment m p f ->
-      let* (rhs, tl) = expect_rule (pat3 m) tl "missing pattern after cons operator" in
-      let* (rhs, tl) = pat2_infix_tail rhs 0 m tl in
-      pat2_infix_tail (Alternate (lhs, rhs)) prec m tl
-    | Cons ((OPSEQ "::", p, f), tl) when prec < 2 && obeys_alignment m p f ->
-      let* (rhs, tl) = expect_rule (pat3 m) tl "missing pattern after cons operator" in
-      let* (rhs, tl) = pat2_infix_tail rhs 1 m tl in
-      pat2_infix_tail (Decons ("(::)", [lhs; rhs])) prec m tl
-    | v -> Ok (lhs, fun () -> v)
+  parse_infix ~m op_table pat3 tokens "missing pattern after infix operator"
 
 and pat3 m tokens =
   (* if we wanted to exactly match the expression grammar, then the prefix (-)
    * would need to be on a separate prec level. but since this operator is
    * always integer negation, the prec level does not matter (since any other
-   * parse would not result in a constant integer) *)
-  match tokens () with
-    | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
+   * parse would not result in a constant integer).
+   *
+   * similar thing happens with custom operators that represent ctors *)
+  match fetch_tokens 3 tokens with
+    | ((LPAREN, p, f) :: (OPSEQ op, q, _) :: (RPAREN, _, _) :: xs, tl) when obeys_alignment m p f ->
+      if op.[0] = ':' then
+        let tl = unfetch_tokens xs tl in
+        let* (args, tl) = parse_many ~m pat4 tl in
+        Ok (Some (Decons ("(" ^ op ^ ")", args)), tl)
+      else Error (q, "This operator can only be used to name values")
+    | ((IDCTOR k, p, f) :: xs, tl) when obeys_alignment m p f ->
+      let tl = unfetch_tokens xs tl in
       let* (args, tl) = parse_many ~m pat4 tl in
       Ok (Some (Decons (k, args)), tl)
-    | Cons ((OPSEQ "-", p, f), tl) when obeys_alignment m p f -> begin
+    | ((OPSEQ "-", p, f) :: xs, tl) when obeys_alignment m p f -> begin
+      let tl = unfetch_tokens xs tl in
       let* (z, tl) = expect_rule (pat4 m) tl "missing pattern after integer negation" in
       match z with
         | Match (LitInt z) -> Ok (Some (Match (LitInt (Z.neg z))), tl)
         | _ -> Error (p, "expected constant integer after integer negation")
     end
-    | v -> pat4 m (fun () -> v)
+    | (xs, tl) -> pat4 m (unfetch_tokens xs tl)
 
 and pat4 m tokens =
   match tokens () with

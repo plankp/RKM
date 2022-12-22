@@ -21,3 +21,13 @@ data
   Option a = None | Some a
   Either a b = Left a | Right b
   Seq a = Nil | Cons a (() -> Seq a)
+
+data
+  NotEmptyList a = (::|) a [a]
+
+1 ::| [];
+:~ 10;
+(::|);
+
+\match { (::|) head _ -> head };
+\match { head ::| _ -> head };
