@@ -366,12 +366,16 @@ and expr3 m tokens =
    * application but (Ctor x y) as a direct construction (assuming it's
    * saturated). this makes a difference since one is a syntactic value and
    * the other is not *)
-  match tokens () with
-    | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
-      let* (args, tl) = parse_many ~m expr4 tl in
+  match fetch_tokens 3 tokens with
+    | ((LPAREN, p, f) :: (OPSEQ op, _, _) :: (RPAREN, _, _) :: xs, tl)
+      when op.[0] = ':' && obeys_alignment m p f ->
+      let* (args, tl) = parse_many ~m expr4 (unfetch_tokens xs tl) in
+      Ok (Some (Ast.Cons ("(" ^ op ^ ")", args)), tl)
+    | ((IDCTOR k, p, f) :: xs, tl) when obeys_alignment m p f ->
+      let* (args, tl) = parse_many ~m expr4 (unfetch_tokens xs tl) in
       Ok (Some (Ast.Cons (k, args)), tl)
-    | v ->
-      let* (f, tl) = expr4 m (fun () -> v) in
+    | (xs, tl) ->
+      let* (f, tl) = expr4 m (unfetch_tokens xs tl) in
       match f with
         | Some f ->
           let rec loop f tl =
