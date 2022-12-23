@@ -1,5 +1,13 @@
 (test
  (name GenAst)
+ (modules GenAst)
  (libraries rkm))
 
-(include test-parser)
+(test
+ (name GenKind)
+ (modules GenKind)
+ (libraries rkm))
+
+(cram
+ (applies_to :whole_subtree)
+ (deps ./GenAst.exe ./GenKind.exe))

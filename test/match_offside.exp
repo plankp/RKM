@@ -1,7 +1,0 @@
-match ((f g) h) with { A -> a; (B x) -> b; C -> (c d); D -> q; }
-match x with { (A x y) -> a; B -> b; }
-match s1 with { A -> a; B -> match s2 with { I -> i; J -> j; }; C -> match s2 with { I -> i; }; }
-match s1 with { A -> a; B -> match s2 with { I -> i; J -> j; }; C -> match s2 with { I -> i; }; }
-match s1 with { A -> a; B -> match s2 with { I -> i; }; J -> j; C -> match s2 with { I -> i; }; }
-match k with { (a, b, c, d) -> (b, c, b, a); }
-(\match { [] -> True; _ -> False; })

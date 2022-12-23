@@ -4,7 +4,7 @@ type ast_toplevel =
   | TopExpr of ast_expr
   | TopDef of ast_vdef list
   | TopExtern of (string * ast_typ * string) list
-  | TopAlias of (string * string list * ast_typ) list
+  | TopAlias of ast_alias list
   | TopData of (string * string list * (string * ast_typ list) list) list
 
 and ast_expr =
@@ -33,7 +33,6 @@ and ast_pat =
   | PatternTyped of ast_pat * ast_typ
 
 and ast_typ =
-  | TypeIgn
   | TypeVar of string
   | TypeCtor of string
   | TypeApp of ast_typ * ast_typ
@@ -42,6 +41,9 @@ and ast_typ =
 and ast_vdef =
   | DefValue of string * ast_pat list * ast_expr
   | DefAnnot of string * ast_typ
+
+and ast_alias =
+  string * string list * ast_typ
 
 and ast_lit =
   | LitInt of Z.t
@@ -141,7 +143,6 @@ and output_pat ppf = function
     fprintf ppf "(%a : %a)" output_pat p output_typ t
 
 and output_typ ppf = function
-  | TypeIgn -> output_string ppf "_"
   | TypeVar n | TypeCtor n -> output_string ppf n
   | TypeApp (p, q) -> fprintf ppf "(%a %a)" output_typ p output_typ q
   | TypeTup elts ->
