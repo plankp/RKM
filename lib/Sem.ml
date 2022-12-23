@@ -22,62 +22,69 @@ let core_tctx : tctx = {
   rules = []
 }
 
-let rec visit_ast_type (tctx : tctx) = function
-  | Ast.TypeVar n -> begin
-    let rec loop = function
-      | [] -> (Error ["unknown type variable named " ^ n], tctx)
-      | x :: xs ->
-        match StrMap.find_opt n x with
-          | None -> loop xs
-          | Some (ty, kind) -> (Ok (ty, kind), tctx) in
-    loop tctx.env
-  end
-  | Ast.TypeCtor n -> begin
-    match StrMap.find_opt n tctx.ctors with
-      | None -> (Error ["unknown type constructor named " ^ n], tctx)
-      | Some (ty, kind) ->
-        let rec loop tctx map = function
-          | Type.TQuant (q, k) ->
-            let kind = Type.TVar ("", tctx.id)
-            and tctx = { tctx with id = Int64.succ tctx.id } in
-            loop tctx (VarInfo.Map.add q kind map) k
-          | kind ->
-            let kind =
-              if VarInfo.Map.is_empty map then kind
-              else Type.eval map VarInfo.Set.empty kind in
-            (Ok (ty, kind), tctx) in
-        loop tctx VarInfo.Map.empty kind
-  end
-  | Ast.TypeApp (p, q) -> begin
-    let (p, tctx) = visit_ast_type tctx p in
-    let (q, tctx) = visit_ast_type tctx q in
-    match (p, q) with
-      | (Error p, Error q) -> (Error (p @ q), tctx)
-      | (Error p, _) | (_, Error p) -> (Error p, tctx)
-      | (Ok (p, pkind), Ok (q, qkind)) ->
-        let kind = Type.TVar ("", tctx.id)
+let visit_ast_type (allow_ign : bool) (tctx : tctx) (ast : Ast.ast_typ) =
+  let rec visit tctx = function
+    | Ast.TypeIgn ->
+      if allow_ign then
+        let ty = Type.TVar ("_", tctx.id)
+        and kind = Type.TVar ("", tctx.id)
         and tctx = { tctx with id = Int64.succ tctx.id } in
-        let rules = (pkind, Type.TArr (qkind, kind)) :: tctx.rules in
-        (Ok (Type.TApp (p, q), kind), { tctx with rules })
-  end
-  | Ast.TypeTup xs -> begin
-    let rec loop acc tctx = function
-      | [] ->
-        let mapf xs = (Type.TTup (List.rev xs), Type.TKind) in
-        (Result.map mapf acc, tctx)
-      | x :: xs ->
-        let (x, tctx) = visit_ast_type tctx x in
-        match (acc, x) with
-          | (Error p, Error q) -> loop (Error (p @ q)) tctx xs
-          | (Error p, _) | (_, Error p) -> loop (Error p) tctx xs
-          | (Ok acc, Ok (x, xkind)) ->
-            let rules = (xkind, Type.TKind) :: tctx.rules in
-            loop (Ok (x :: acc)) { tctx with rules } xs in
-    loop (Ok []) tctx xs
-  end
+        (Ok (ty, kind), tctx)
+      else (Error ["unnamed type not allowed in this context"], tctx)
+    | Ast.TypeVar n -> begin
+      let rec loop = function
+        | [] -> (Error ["unknown type variable named " ^ n], tctx)
+        | x :: xs ->
+          match StrMap.find_opt n x with
+            | None -> loop xs
+            | Some (ty, kind) -> (Ok (ty, kind), tctx) in
+      loop tctx.env
+    end
+    | Ast.TypeCtor n -> begin
+      match StrMap.find_opt n tctx.ctors with
+        | None -> (Error ["unknown type constructor named " ^ n], tctx)
+        | Some (ty, kind) ->
+          let rec loop tctx map = function
+            | Type.TQuant (q, k) ->
+              let kind = Type.TVar ("", tctx.id)
+              and tctx = { tctx with id = Int64.succ tctx.id } in
+              loop tctx (VarInfo.Map.add q kind map) k
+            | kind ->
+              let kind =
+                if VarInfo.Map.is_empty map then kind
+                else Type.eval map VarInfo.Set.empty kind in
+              (Ok (ty, kind), tctx) in
+          loop tctx VarInfo.Map.empty kind
+    end
+    | Ast.TypeApp (p, q) -> begin
+      let (p, tctx) = visit tctx p in
+      let (q, tctx) = visit tctx q in
+      match (p, q) with
+        | (Error p, Error q) -> (Error (p @ q), tctx)
+        | (Error p, _) | (_, Error p) -> (Error p, tctx)
+        | (Ok (p, pkind), Ok (q, qkind)) ->
+          let kind = Type.TVar ("", tctx.id)
+          and tctx = { tctx with id = Int64.succ tctx.id } in
+          let rules = (pkind, Type.TArr (qkind, kind)) :: tctx.rules in
+          (Ok (Type.TApp (p, q), kind), { tctx with rules })
+    end
+    | Ast.TypeTup xs -> begin
+      let rec loop acc tctx = function
+        | [] ->
+          let mapf xs = (Type.TTup (List.rev xs), Type.TKind) in
+          (Result.map mapf acc, tctx)
+        | x :: xs ->
+          let (x, tctx) = visit tctx x in
+          match (acc, x) with
+            | (Error p, Error q) -> loop (Error (p @ q)) tctx xs
+            | (Error p, _) | (_, Error p) -> loop (Error p) tctx xs
+            | (Ok acc, Ok (x, xkind)) ->
+              let rules = (xkind, Type.TKind) :: tctx.rules in
+              loop (Ok (x :: acc)) { tctx with rules } xs in
+      loop (Ok []) tctx xs
+    end in
 
-let visit_ast_type (tctx : tctx) (ast : Ast.ast_typ) =
-  match visit_ast_type tctx ast with
+  match visit tctx ast with
     | (Ok (ty, kind), tctx) ->
       let ty = Type.normalize ty in
       if Type.contains_quant ty then (Error ["unsaturated type aliases are not allowed"], tctx)
@@ -91,7 +98,7 @@ let visit_alias (tctx : tctx) (ast : Ast.ast_alias) =
       if errors = [] then begin
         let old_env = tctx.env in
         let old_rules = tctx.rules in
-        match visit_ast_type { tctx with env = [map]; rules = [] } t with
+        match visit_ast_type false { tctx with env = [map]; rules = [] } t with
           | (Error e, _) -> Error e
           | (Ok (t, k), tctx) ->
             match Type.unify VarInfo.Map.empty tctx.rules with

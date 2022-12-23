@@ -7,3 +7,8 @@
   > type A = B
   > EOF
   Error: unknown type constructor named B
+
+  $ ../GenKind.exe << "EOF"
+  > type A = _
+  > EOF
+  Error: unnamed type not allowed in this context

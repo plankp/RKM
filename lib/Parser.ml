@@ -587,6 +587,8 @@ and annot2 m tokens =
 
 and annot3 m tokens =
   match tokens () with
+    | Cons ((UNDERSCORE, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some TypeIgn, tl)
     | Cons ((IDVAR n, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (TypeVar n), tl)
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->

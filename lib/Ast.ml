@@ -33,6 +33,7 @@ and ast_pat =
   | PatternTyped of ast_pat * ast_typ
 
 and ast_typ =
+  | TypeIgn
   | TypeVar of string
   | TypeCtor of string
   | TypeApp of ast_typ * ast_typ
@@ -143,6 +144,7 @@ and output_pat ppf = function
     fprintf ppf "(%a : %a)" output_pat p output_typ t
 
 and output_typ ppf = function
+  | TypeIgn -> output_string ppf "_"
   | TypeVar n | TypeCtor n -> output_string ppf n
   | TypeApp (p, q) -> fprintf ppf "(%a %a)" output_typ p output_typ q
   | TypeTup elts ->
