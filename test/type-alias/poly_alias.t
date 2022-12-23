@@ -6,9 +6,11 @@
   > EOF
   (->) = (->) : * -> * -> *
   App = (\f. (\v. f v)) : (\$2. (\$3. ($2 -> $3) -> $2 -> $3))
+  Bool = Bool : *
   Char = Char : *
   Id = (\x. x) : (\$0. $0 -> $0)
   Int = Int : *
   IntToChar = Int -> Char : *
   Partial = (->) String : * -> *
   String = String : *
+  [] = [] : * -> *

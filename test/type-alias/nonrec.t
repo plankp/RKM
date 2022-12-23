@@ -6,6 +6,8 @@
   (->) = (->) : * -> * -> *
   A = ((), ()) : *
   B = () -> () : *
+  Bool = Bool : *
   Char = Char : *
   Int = Int : *
   String = String : *
+  [] = [] : * -> *

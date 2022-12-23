@@ -15,6 +15,8 @@ type t =
 
 and tctor =
   | TCtorArr
+  | TCtorBool
+  | TCtorList
 
 module V = VarInfo
 
@@ -33,9 +35,10 @@ let rec output ppf = function
     fprintf ppf "(%a" output x;
     List.iter (fprintf ppf ", %a" output) xs;
     output_string ppf ")"
-  | TCons (TCtorArr, []) -> output_string ppf "(->)"
-  | TCons (TCtorArr, x :: xs) ->
-    fprintf ppf "(->) %a" output (check_app_prec x);
+  | TCons (TCtorList, [x]) -> fprintf ppf "[%a]" output x
+  | TCons (k, []) -> output_string ppf (tctor_to_string k)
+  | TCons (k, x :: xs) ->
+    fprintf ppf "%s %a" (tctor_to_string k) output (check_app_prec x);
     List.iter (fun x -> fprintf ppf ", %a" output (check_app_prec x)) xs
   | TQuant (n, t) ->
     fprintf ppf "(\\%a. %a)" V.output n output t
@@ -58,15 +61,20 @@ and to_string = function
     List.iter (fun x -> bprintf buf ", %s" (to_string (check_app_prec x))) xs;
     Buffer.add_string buf ")";
     Buffer.contents buf
-  | TCons (TCtorArr, []) -> "(->)"
-  | TCons (TCtorArr, x :: xs) ->
+  | TCons (TCtorList, [x]) -> sprintf "[%s]" (to_string x)
+  | TCons (k, []) -> tctor_to_string k
+  | TCons (k, x :: xs) ->
     let buf = Buffer.create 32 in
-    Buffer.add_string buf "(->) ";
-    Buffer.add_string buf (to_string (check_app_prec x));
+    bprintf buf "%s %s" (tctor_to_string k) (to_string (check_app_prec x));
     List.iter (fun x -> bprintf buf ", %s" (to_string (check_app_prec x))) xs;
     Buffer.contents buf
   | TQuant (n, t) ->
     sprintf "(\\%s. %s)" (V.to_string n) (to_string t)
+
+and tctor_to_string = function
+  | TCtorArr -> "(->)"
+  | TCtorBool -> "Bool"
+  | TCtorList -> "[]"
 
 and check_app_prec = function
   | TApp _ | TCons (_, _ :: _) as q -> TTup [q]
@@ -202,11 +210,17 @@ type bad_unify =
   | Mismatch of t * t
   | Cyclic of V.t * t
 
-let explain : bad_unify -> string = function
-  | Mismatch (p, q) ->
-    sprintf "Cannot unify unrelated types %s and %s" (to_string p) (to_string q)
+let explain ?(env = None) : bad_unify -> string = function
   | Cyclic (v, q) ->
     sprintf "Cannot unify recursive types %s and %s" (V.to_string v) (to_string q)
+  | Mismatch (p, q) ->
+    let (p, q) = match env with
+      | None -> (p, q)
+      | Some env ->
+        let (p, env) = expand env p in
+        let (q, _) = expand env q in
+        (p, q) in
+    sprintf "Cannot unify unrelated types %s and %s" (to_string p) (to_string q)
 
 let unify (env : t V.Map.t) (rules : (t * t) list) =
   let rec loop env rem = function
@@ -229,7 +243,9 @@ let unify (env : t V.Map.t) (rules : (t * t) list) =
           loop env rem ((f1, f2) :: (a1, a2) :: tl)
 
         | (TTup xs, TTup ys)
-        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
+        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys))
+        | (TCons (TCtorBool, xs), TCons (TCtorBool, ys))
+        | (TCons (TCtorList, xs), TCons (TCtorList, ys)) ->
           let rec tail acc = function
             | ([], []) -> loop env rem (List.rev_append acc tl)
             | (x :: xs, y :: ys) -> tail ((x, y) :: acc) (xs, ys)
