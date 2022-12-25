@@ -18,7 +18,8 @@ and ast_expr =
   | App of ast_expr * ast_expr
   | Unary of string * ast_expr
   | Binary of string * ast_expr * ast_expr
-  | Let of bool * ast_vdef list * ast_expr
+  | Let of ast_vdef list * ast_expr
+  | LetRec of ast_vdef list * ast_expr
   | Case of ast_expr * (ast_pat * ast_expr) list
   | Cond of ast_expr * ast_expr * ast_expr
   | ExprTyped of ast_expr * ast_typ
@@ -113,8 +114,12 @@ and output_expr ppf = function
     fprintf ppf "(%a)" (output_list output_expr) elts
   | List elts ->
     fprintf ppf "[%a]" (output_list output_expr) elts
-  | Let (recur, vb, e) ->
-    output_string ppf (if recur then "let rec {" else "let {");
+  | Let (vb, e) ->
+    output_string ppf "let {";
+    List.iter (fprintf ppf " %a;" output_vdef) vb;
+    fprintf ppf " } in %a" output_expr e
+  | LetRec (vb, e) ->
+    output_string ppf "let rec {";
     List.iter (fprintf ppf " %a;" output_vdef) vb;
     fprintf ppf " } in %a" output_expr e
   | Case (s, cases) ->

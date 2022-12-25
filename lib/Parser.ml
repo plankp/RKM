@@ -430,7 +430,7 @@ and expr4 m tokens =
       let* (vb, tl) = expect_some (parse_block binding) tl "missing bindings" in
       let* (_, tl) = expect_tok IN tl "missing 'in'" in
       let* (e, tl) = expect_rule (expr m) tl "missing body" in
-      Ok (Some (Let (recur, vb, e)), tl)
+      Ok (Some (if recur then LetRec (vb, e) else Let (vb, e)), tl)
     | Cons ((MATCH, p, f), tl) when obeys_alignment m p f ->
       let* (s, tl) = expect_rule (expr ~-1) tl "missing scrutinee" in
       let* (_, tl) = expect_tok WITH tl "missing 'with'" in
