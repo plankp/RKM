@@ -288,7 +288,27 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
     | (Ok (p, captures), next, tctx) -> (Ok (p, captures, next), tctx)
 
 let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
-  let rec visit ty tctx = function
+  let rec visit_cases sty ety tctx cases =
+    let rec loop acc tctx = function
+      | [] -> (Ok (List.rev acc), tctx)
+      | (p, e) :: xs ->
+        let (p, tctx) = visit_pat sty StrMap.empty tctx p in
+        match p with
+          | Error e -> (Error e, tctx)
+          | Ok (p, new_ids, new_tvs) ->
+            let tctx = { tctx with
+              idenv = new_ids :: tctx.idenv;
+              tvenv = new_tvs :: tctx.tvenv } in
+            let (e, tctx) = visit ety tctx e in
+            let tctx = { tctx with
+              idenv = List.tl tctx.idenv;
+              tvenv = List.tl tctx.tvenv } in
+            match e with
+              | Error e -> (Error e, tctx)
+              | Ok e -> loop ((p, e) :: acc) tctx xs in
+    loop [] tctx cases
+
+  and visit ty tctx = function
     | Ast.Lit (LitInt _) as t ->
       (Ok t, { tctx with rules = (ty, Type.TInt) :: tctx.rules })
     | Ast.Lit (LitStr _) as t ->
@@ -329,6 +349,18 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
             | (Error p, _) | (_, Error p) -> loop (Error p) tctx xs
             | (Ok acc, Ok x) -> loop (Ok (x :: acc)) tctx xs in
       loop (Ok []) tctx xs
+    | Ast.LamCase cases -> begin
+      let sty = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id } in
+      let ety = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id } in
+      let (cases, tctx) = visit_cases sty ety tctx cases in
+      match cases with
+        | Error e -> (Error e, tctx)
+        | Ok cases ->
+          let rules = (ty, Type.TArr (sty, ety)) :: tctx.rules in
+          (Ok (Ast.LamCase cases), { tctx with rules })
+    end
     | Ast.App (f, v) -> begin
       let vty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
@@ -408,24 +440,10 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       match s with
         | Error e -> (Error e, tctx)
         | Ok s ->
-          let rec loop acc tctx = function
-            | [] -> (Ok (Ast.Case (s, List.rev acc)), tctx)
-            | (p, e) :: xs ->
-              let (p, tctx) = visit_pat sty StrMap.empty tctx p in
-              match p with
-                | Error e -> (Error e, tctx)
-                | Ok (p, captures, next) ->
-                  let tctx = { tctx with
-                    idenv = captures :: tctx.idenv;
-                    tvenv = next :: tctx.tvenv } in
-                  let (e, tctx) = visit ty tctx e in
-                  let tctx = { tctx with
-                    idenv = List.tl tctx.idenv;
-                    tvenv = List.tl tctx.tvenv } in
-                  match e with
-                    | Error e -> (Error e, tctx)
-                    | Ok e -> loop ((p, e) :: acc) tctx xs in
-          loop [] tctx cases
+          let (cases, tctx) = visit_cases sty ty tctx cases in
+          match cases with
+            | Error e -> (Error e, tctx)
+            | Ok cases -> (Ok (Ast.Case (s, cases)), tctx)
     end
     | Ast.Cond (k, t, f) -> begin
       let (k, tctx) = visit Type.tyBool tctx k in

@@ -14,6 +14,20 @@ This does not type check because both a's refer to the same type variable
   > EOF
   Error: Cannot unify unrelated types Int and String
 
+A few more expression contexts that are allowed to bind fresh type variables
+  $ GenExpr << "EOF"
+  > \match (x : a, y) -> (y, x : a)
+  >        (x, y : a) -> (y : a, x)
+  > EOF
+  (\match { (x, y) -> (y, x); (x, y) -> (y, x); })
+  : (a$5, a$10) -> (a$10, a$5)
+
+  $ GenExpr << "EOF"
+  > \match (x : a, y : a) -> (y, x)
+  > EOF
+  (\match { (x, y) -> (y, x); })
+  : (a$5, a$5) -> (a$5, a$5)
+
 Not all expression contexts are allowed to bind fresh type variables
   $ GenExpr << "EOF"
   > 10 : a
