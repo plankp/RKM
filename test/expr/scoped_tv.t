@@ -14,7 +14,7 @@ This does not type check because both a's refer to the same type variable
   > EOF
   Error: Cannot unify unrelated types Int and String
 
-A few more expression contexts that are allowed to bind fresh type variables
+Basically patterns can bind fresh type variables
   $ GenExpr << "EOF"
   > \match (x : a, y) -> (y, x : a)
   >        (x, y : a) -> (y : a, x)
@@ -27,6 +27,26 @@ A few more expression contexts that are allowed to bind fresh type variables
   > EOF
   (\match { (x, y) -> (y, x); })
   : (a$5, a$5) -> (a$5, a$5)
+
+  $ GenExpr << "EOF"
+  > \(x : a) (y : a) -> (x, y)
+  > EOF
+  (\x y -> (x, y))
+  : a$5 -> a$5 -> (a$5, a$5)
+
+  $ GenExpr << "EOF"
+  > \(x : a) y -> (x, y : a)
+  > EOF
+  (\x y -> (x, y))
+  : a$5 -> a$5 -> (a$5, a$5)
+
+Note that since type variables are weak and not rigid, in this case, both a b
+refer to the same type
+  $ GenExpr << "EOF"
+  > \(x : a) (y : b) -> (x, y : a)
+  > EOF
+  (\x y -> (x, y))
+  : b$6 -> b$6 -> (b$6, b$6)
 
 Not all expression contexts are allowed to bind fresh type variables
   $ GenExpr << "EOF"

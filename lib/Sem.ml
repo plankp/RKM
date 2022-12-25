@@ -349,6 +349,30 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
             | (Error p, _) | (_, Error p) -> loop (Error p) tctx xs
             | (Ok acc, Ok x) -> loop (Ok (x :: acc)) tctx xs in
       loop (Ok []) tctx xs
+    | Ast.Lam (ps, e) -> begin
+      let sty = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id } in
+      let ety = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id } in
+      let (cases, tctx) = visit_cases sty ety tctx [Ast.Detup ps, e] in
+      match cases with
+        | Error e -> (Error e, tctx)
+        | Ok [(Ast.Detup ps, e)] -> begin
+          let (subst, errors) = Type.unify tctx.subst tctx.rules in
+          let tctx = { tctx with subst; rules = [] } in
+          match errors with
+            | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
+            | [] ->
+              match Type.shallow_subst subst sty with
+                | (Type.TTup xs, subst) -> begin
+                  let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
+                  let rules = (ty, t) :: tctx.rules in
+                  (Ok (Ast.Lam (ps, e)), { tctx with rules; subst })
+                end
+                | _ -> failwith "IMPOSSIBLE PATTERN TYPE"
+        end
+        | Ok _ -> failwith "IMPOSSIBLE NUMBER OF CASES"
+    end
     | Ast.LamCase cases -> begin
       let sty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
