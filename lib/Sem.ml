@@ -1,15 +1,16 @@
 module StrMap = Map.Make (String)
+module V = VarInfo
 
 type tkmap = (Type.t * Type.t) StrMap.t
 
 type tctx = {
   id : Int64.t;
   tctors : tkmap;
-  dctors : Type.t StrMap.t;
+  dctors : Type.variant StrMap.t;
   tvenv : tkmap list;
   idenv : Type.t StrMap.t list;
   rules : (Type.t * Type.t) list;
-  subst : Type.t VarInfo.Map.t;
+  subst : Type.t V.Map.t;
 }
 
 let map_of_list (list : (string * 'a) list) =
@@ -26,14 +27,16 @@ let core_tctx : tctx = {
     "Int", (TInt, TKind);
     "Bool", (Type.tyBool, TKind);
   ] : (string * (Type.t * Type.t)) list);
-  dctors = map_of_list (
-    Type.quantize_cases Type.varList @
-    Type.quantize_cases Type.varBool);
+  dctors = map_of_list [
+    "True", Type.varBool;
+    "False", Type.varBool;
+    "(::)", Type.varList;
+  ];
 
   idenv = [];
   tvenv = [];
   rules = [];
-  subst = VarInfo.Map.empty;
+  subst = V.Map.empty;
 }
 
 let lookup_env (name : string) (env : 'a StrMap.t list) =
@@ -50,13 +53,13 @@ let instantiate (tctx : tctx) (t : Type.t) =
     | Type.TQuant (q, t) ->
       let fresh = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
-      loop tctx (fresh :: acc) (VarInfo.Map.add q fresh map) t
+      loop tctx (fresh :: acc) (V.Map.add q fresh map) t
     | t ->
       let t =
-        if VarInfo.Map.is_empty map then t
-        else Type.eval map VarInfo.Set.empty t in
+        if V.Map.is_empty map then t
+        else Type.eval map V.Set.empty t in
       (t, List.rev acc, tctx) in
-  loop tctx [] VarInfo.Map.empty t
+  loop tctx [] V.Map.empty t
 
 let merge_errors (results : ('a, 'b list) result list) : 'b list =
   let rec loop acc = function
@@ -143,7 +146,7 @@ let visit_alias (tctx : tctx) (ast : Ast.ast_alias) =
         match visit_ast_type false None { tctx with tvenv = [map]; rules = [] } t with
           | (Error e, _) -> Error e
           | (Ok (t, k, _), tctx) ->
-            let (subst, errors) = Type.unify VarInfo.Map.empty tctx.rules in
+            let (subst, errors) = Type.unify V.Map.empty tctx.rules in
             match errors with
               | _ :: _ -> Error (List.map (Type.explain ~env:(Some subst)) errors)
               | [] ->
@@ -152,7 +155,7 @@ let visit_alias (tctx : tctx) (ast : Ast.ast_alias) =
                   let (qk, subst) = Type.expand subst qk in
                   (Type.TQuant (q, t), Type.TArr (qk, k), subst) in
                 let (t, k, _) = List.fold_left foldf (t, k, subst) acc in
-                let (quants, k) = Type.gen VarInfo.Set.empty k in
+                let (quants, k) = Type.gen V.Set.empty k in
                 let k = List.fold_right (fun q k -> Type.TQuant (q, k)) quants k in
                 Ok (n, t, k, { tctx with tvenv = old_env; rules = old_rules })
       end else Error (List.rev errors)
@@ -200,6 +203,44 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
     | Ast.Match (LitChar _) as t ->
       let rules = (ty, Type.TChr) :: tctx.rules in
       (Ok (t, captures), next, { tctx with rules })
+    | Ast.Decons (k, ys) -> begin
+      let (subst, errors) = Type.unify tctx.subst tctx.rules in
+      let tctx = { tctx with subst; rules = [] } in
+      match errors with
+        | _ :: _ ->
+          (Error (List.map (Type.explain ~env:(Some subst)) errors), next, tctx)
+        | [] ->
+          let (ty, subst) = Type.shallow_subst tctx.subst ty in
+          let tctx = { tctx with subst } in
+          let (f, tctx) = match Type.normalize ty with
+            | TCons (TCtorVar v, args) -> (Type.inst_case v k args, tctx)
+            | _ ->
+              match StrMap.find_opt k tctx.dctors with
+                | None -> (None, tctx)
+                | Some v ->
+                  let foldf (acc, tctx) _ =
+                    let fresh = Type.TVar ("", tctx.id)
+                    and tctx = { tctx with id = Int64.succ tctx.id } in
+                    (fresh :: acc, tctx) in
+                  let (args, tctx) = List.fold_left foldf ([], tctx) v.quants in
+                  let args = List.rev args in
+                  let rules = (ty, Type.TCons (TCtorVar v, args)) :: tctx.rules in
+                  (Type.inst_case v k args, { tctx with rules }) in
+          match f with
+            | None -> (Error ["unknown data constructor named " ^ k], next, tctx)
+            | Some xs ->
+              let rec loop acc captures next tctx = function
+                | ([], []) ->
+                  (Ok (Ast.Decons (k, List.rev acc), captures), next, tctx)
+                | (x :: xs, y :: ys) -> begin
+                  match visit captures next x tctx y with
+                    | (Ok (p, captures), next, tctx) ->
+                      loop (p :: acc) captures next tctx (xs, ys)
+                    | error -> error
+                end
+                | _ -> (Error ["data constructor arity mismatch"], next, tctx) in
+              loop [] captures next tctx (xs, ys)
+    end
     | Ast.Detup xs ->
       let (shape, tctx) = gen_tuple_shape tctx xs in
       let tctx = { tctx with rules = (ty, TTup shape) :: tctx.rules } in
@@ -275,8 +316,7 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
             | [] -> visit captures next ty tctx p
             | _ ->
               (Error (List.map (Type.explain ~env:(Some subst)) errors), next, tctx)
-    end
-    | _ -> (Error ["TODO"], next, tctx) in
+    end in
 
   match visit StrMap.empty next ty tctx ast with
     | (Error e, _, tctx) -> (Error e, tctx)

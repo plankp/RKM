@@ -167,19 +167,19 @@ let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
 let normalize (t : t) =
   eval V.Map.empty V.Set.empty t
 
-let quantize_cases (v : variant) =
-  let t = TCons (TCtorVar v, List.map (fun tv -> TRigid tv) v.quants) in
-  let foldf k args acc =
-    let t = List.fold_right (fun arg t -> TArr (arg, t)) args t in
-    let t = List.fold_right (fun q t -> TQuant (q, t)) v.quants t in
-    (k, t) :: acc in
-  Hashtbl.fold foldf v.cases []
-
 let inst_variant (v : variant) (args : t list) =
   let foldf m q arg = V.Map.add q arg m in
   let env = List.fold_left2 foldf V.Map.empty v.quants args in
   let foldf k args acc = (k, List.map (eval env V.Set.empty) args) :: acc in
   Hashtbl.fold foldf v.cases []
+
+let inst_case (v : variant) (k : string) (targs : t list) =
+  match Hashtbl.find_opt v.cases k with
+    | None -> None
+    | Some args ->
+      let foldf m q arg = V.Map.add q arg m in
+      let env = List.fold_left2 foldf V.Map.empty v.quants targs in
+      Some (List.map (eval env V.Set.empty) args)
 
 let rec contains_quant = function
   | TQuant _ -> true
