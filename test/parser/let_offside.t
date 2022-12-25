@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > let x = a; y = b; g = c in z;
   > 
   > let x = a; y = b

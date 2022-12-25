@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > a b c;
   > d e
   > f;

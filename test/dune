@@ -1,18 +1,18 @@
-(test
- (name GenAst)
+(executable
+ (public_name GenAst)
  (modules GenAst)
  (libraries rkm))
 
-(test
- (name GenKind)
+(executable
+ (public_name GenKind)
  (modules GenKind)
  (libraries rkm))
 
-(test
- (name GenExpr)
+(executable
+ (public_name GenExpr)
  (modules GenExpr)
  (libraries rkm))
 
 (cram
  (applies_to :whole_subtree)
- (deps ./GenAst.exe ./GenKind.exe ./GenExpr.exe))
+ (deps %{bin:GenAst} %{bin:GenKind} %{bin:GenExpr}))

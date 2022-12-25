@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > match ((Cons x) Nil) with
   >   Cons (-2) xs | Cons 3 xs -> "Ok"
   >   _ -> "Else"

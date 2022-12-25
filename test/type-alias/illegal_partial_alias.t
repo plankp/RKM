@@ -1,4 +1,4 @@
-  $ ../GenKind.exe << "EOF"
+  $ GenKind << "EOF"
   > type Foo t = ()
   > type Bar = Foo
   > EOF

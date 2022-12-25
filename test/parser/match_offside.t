@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > match f     // the scrutinee is free-form
   >  g h with A -> a; B
   >            x -> b

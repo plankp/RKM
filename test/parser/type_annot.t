@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > let f = 10 + 20 : Int in f; // Int annotates over the summation
   > 
   > let empty = \match

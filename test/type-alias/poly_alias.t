@@ -1,4 +1,4 @@
-  $ ../GenKind.exe << "EOF"
+  $ GenKind << "EOF"
   > type Id x = x
   >      App f v = f v
   > type IntToChar = Id (App App App (->) Int Char)

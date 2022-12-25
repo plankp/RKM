@@ -1,4 +1,4 @@
-  $ ../GenKind.exe << "EOF"
+  $ GenKind << "EOF"
   > type A = ()
   > type A = (A, A)
   >      B = A -> ()

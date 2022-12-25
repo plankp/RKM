@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > // make sure the general shift-reduce logic is correct
   > x + y * z + w;
   > x * y + z + w;

@@ -1,4 +1,4 @@
-  $ ../GenAst.exe << "EOF"
+  $ GenAst << "EOF"
   > // list decons
   > match e with _ :: _ | _ :: _ :: _ -> a; _ -> b;
   > match e with _ :: (_ | _) :: _ :: _ -> a; _ -> b;

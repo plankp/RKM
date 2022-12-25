@@ -1,4 +1,4 @@
-  $ ../GenKind.exe
+  $ GenKind
   (->) = (->) : * -> * -> *
   Bool = Bool : *
   Char = Char : *
