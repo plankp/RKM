@@ -18,6 +18,9 @@ and tctor =
   | TCtorBool
   | TCtorList
 
+let tyBool = TCons (TCtorBool, [])
+let tyList elt = TCons (TCtorList, [elt])
+
 module V = VarInfo
 
 let rec output ppf = function

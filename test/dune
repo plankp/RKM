@@ -8,6 +8,11 @@
  (modules GenKind)
  (libraries rkm))
 
+(test
+ (name GenExpr)
+ (modules GenExpr)
+ (libraries rkm))
+
 (cram
  (applies_to :whole_subtree)
- (deps ./GenAst.exe ./GenKind.exe))
+ (deps ./GenAst.exe ./GenKind.exe ./GenExpr.exe))

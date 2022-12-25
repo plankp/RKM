@@ -51,6 +51,20 @@ let rec loop tctx =
                   | Ok (_, t, k, _) ->
                     printf "%a : %a\n" Type.output t Type.output k in
             loop tctx
+          | ":t" | ":type" ->
+            let lexbuf = Lexing.from_string lines in
+            let result = parse (Parser.expr ~-1) lexbuf in
+            let () = match result with
+              | Error (p, e) ->
+                printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e
+              | Ok (None, _) -> ()
+              | Ok (Some ast, _) ->
+                match visit_top_expr tctx ast with
+                  | Error e ->
+                    List.iter (printf "Error: %s\n") e
+                  | Ok (ast, t, _) ->
+                    printf "%a\n: %a\n" Ast.output_expr ast Type.output t in
+            loop tctx
           | _ ->
             printf "unknown command '%s'\n" cmd;
             loop tctx
