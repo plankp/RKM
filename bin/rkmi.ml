@@ -62,8 +62,9 @@ let rec loop tctx =
                 match visit_top_expr tctx ast with
                   | Error e ->
                     List.iter (printf "Error: %s\n") e
-                  | Ok (ast, t, _) ->
-                    printf "%a\n: %a\n" Ast.output_expr ast Type.output t in
+                  | Ok (ast, t, tctx) ->
+                    let (ast, _) = Expr.expand_type tctx.subst ast in
+                    printf "%a\n: %a\n" Expr.output ast Type.output t in
             loop tctx
           | _ ->
             printf "unknown command '%s'\n" cmd;

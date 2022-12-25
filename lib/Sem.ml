@@ -20,23 +20,15 @@ let core_tctx : tctx = {
 
   tctors = map_of_list ([
     "(->)", (TCons (TCtorArr, []), TArr (TKind, TArr (TKind, TKind)));
-    "[]", (TCons (TCtorList, []), TArr (TKind, TKind));
+    "[]", (TCons (TCtorVar Type.varList, []), TArr (TKind, TKind));
     "Char", (TChr, TKind);
     "String", (TStr, TKind);
     "Int", (TInt, TKind);
-    "Bool", (TCons (TCtorBool, []), TKind);
+    "Bool", (Type.tyBool, TKind);
   ] : (string * (Type.t * Type.t)) list);
-  dctors = map_of_list ([
-    "True", Type.tyBool;
-    "False", Type.tyBool;
-
-    (* (::) : \a. a -> [a] -> [a] *)
-    "(::)", TQuant (("a", 0L),
-      TArr (TRigid ("a", 0L),
-        TArr (Type.tyList (TRigid ("a", 0L)),
-          Type.tyList (TRigid ("a", 0L)))));
-    "[]", TQuant (("a", 0L), Type.tyList (TRigid ("a", 0L)));
-  ] : (string * Type.t) list);
+  dctors = map_of_list (
+    Type.quantize_cases Type.varList @
+    Type.quantize_cases Type.varBool);
 
   idenv = [];
   tvenv = [];
@@ -54,17 +46,17 @@ let lookup_env (name : string) (env : 'a StrMap.t list) =
   loop env
 
 let instantiate (tctx : tctx) (t : Type.t) =
-  let rec loop tctx map = function
+  let rec loop tctx acc map = function
     | Type.TQuant (q, t) ->
       let fresh = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
-      loop tctx (VarInfo.Map.add q fresh map) t
+      loop tctx (fresh :: acc) (VarInfo.Map.add q fresh map) t
     | t ->
       let t =
         if VarInfo.Map.is_empty map then t
         else Type.eval map VarInfo.Set.empty t in
-      (t, tctx) in
-  loop tctx VarInfo.Map.empty t
+      (t, List.rev acc, tctx) in
+  loop tctx [] VarInfo.Map.empty t
 
 let merge_errors (results : ('a, 'b list) result list) : 'b list =
   let rec loop acc = function
@@ -102,7 +94,7 @@ let visit_ast_type (allow_ign : bool) (next : tkmap option) (tctx : tctx) (ast :
       match StrMap.find_opt n tctx.tctors with
         | None -> (Error ["unknown type constructor named " ^ n], next, tctx)
         | Some (ty, kind) ->
-          let (kind, tctx) = instantiate tctx kind in
+          let (kind, _, tctx) = instantiate tctx kind in
           (Ok (ty, kind), next, tctx)
     end
     | Ast.TypeApp (p, q) -> begin
@@ -228,7 +220,10 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
       and tctx = { tctx with id = Int64.succ tctx.id } in
       let tctx = { tctx with rules = (ty, Type.tyList ety) :: tctx.rules } in
       let rec loop acc captures next tctx = function
-        | [] -> (Ok (Ast.Delist (List.rev acc), captures), next, tctx)
+        | [] ->
+          let p = Ast.Decons ("[]", []) in
+          let p = List.fold_left (fun xs x -> Ast.Decons ("(::)", [x; xs])) p acc in
+          (Ok (p, captures), next, tctx)
         | x :: xs ->
           match visit captures next ety tctx x with
             | (Ok (p, captures), next, tctx) ->
@@ -288,6 +283,7 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
     | (Ok (p, captures), next, tctx) -> (Ok (p, captures, next), tctx)
 
 let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
+  let open Expr in
   let rec visit_cases sty ety tctx cases =
     let rec loop acc tctx = function
       | [] -> (Ok (List.rev acc), tctx)
@@ -308,26 +304,32 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
               | Ok e -> loop ((p, e) :: acc) tctx xs in
     loop [] tctx cases
 
+  and lookup_var n ty tctx errf =
+    match lookup_env n tctx.idenv with
+      | None -> (Error [errf ()], tctx)
+      | Some vty ->
+        let (instty, ts, tctx) = instantiate tctx vty in
+        let rules = (ty, instty) :: tctx.rules in
+        let e = EVar ((n, 0L), vty) in
+        let e = List.fold_left (fun e a -> EApp (e, EType a)) e ts in
+        (Ok e, { tctx with rules })
+
   and visit ty tctx = function
-    | Ast.Lit (LitInt _) as t ->
-      (Ok t, { tctx with rules = (ty, Type.TInt) :: tctx.rules })
-    | Ast.Lit (LitStr _) as t ->
-      (Ok t, { tctx with rules = (ty, Type.TStr) :: tctx.rules })
-    | Ast.Lit (LitChar _) as t ->
-      (Ok t, { tctx with rules = (ty, Type.TChr) :: tctx.rules })
-    | Ast.Var n -> begin
-      match lookup_env n tctx.idenv with
-        | None -> (Error ["unknown binding named " ^ n], tctx)
-        | Some vty ->
-          let (vty, tctx) = instantiate tctx vty in
-          (Ok (Ast.Var n), { tctx with rules = (ty, vty) :: tctx.rules })
+    | Ast.Lit lit -> begin
+      let resty = match lit with
+        | LitInt _ -> Type.TInt
+        | LitStr _ -> Type.TStr
+        | LitChar _ -> Type.TStr in
+      (Ok (ELit lit), { tctx with rules = (ty, resty) :: tctx.rules })
     end
+    | Ast.Var n ->
+      lookup_var n ty tctx (fun () -> "unknown binding named " ^ n)
     | Ast.Tup xs -> begin
       let (shape, tctx) = gen_tuple_shape tctx xs in
       let tctx = { tctx with rules = (ty, TTup shape) :: tctx.rules } in
 
       let rec loop acc tctx = function
-        | ([], []) -> (Ok (Ast.Tup (List.rev acc)), tctx)
+        | ([], []) -> (Ok (ETup (List.rev acc)), tctx)
         | (x :: xs, y :: ys) -> begin
           match visit x tctx y with
             | (Ok e, tctx) -> loop (e :: acc) tctx (xs, ys)
@@ -341,7 +343,11 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       and tctx = { tctx with id = Int64.succ tctx.id } in
       let tctx = { tctx with rules = (ty, Type.tyList ety) :: tctx.rules } in
       let rec loop acc tctx = function
-        | [] -> (Result.map (fun acc -> Ast.List (List.rev acc)) acc, tctx)
+        | [] ->
+          let gen_list acc =
+            let foldf xs x = ECons ("(::)", [x; xs]) in
+            List.fold_left foldf (ECons ("[]", [])) acc in
+          (Result.map gen_list acc, tctx)
         | x :: xs ->
           let (x, tctx) = visit ety tctx x in
           match (acc, x) with
@@ -363,11 +369,20 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
           match errors with
             | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
             | [] ->
-              match Type.shallow_subst subst sty with
+              match Type.expand subst sty with
                 | (Type.TTup xs, subst) -> begin
                   let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
                   let rules = (ty, t) :: tctx.rules in
-                  (Ok (Ast.Lam (ps, e)), { tctx with rules; subst })
+                  let tctx = { tctx with rules; subst } in
+
+                  let foldf (id, acc) ty =
+                    let tmp = (("", id), ty) in
+                    (Int64.succ id, (tmp, ty) :: acc) in
+                  let (_, acc) = List.fold_left foldf (0L, []) xs in
+
+                  let inputs = List.rev_map (fun (v, ty) -> (EVar v, ty)) acc in
+                  let e = ConvCase.conv_case inputs [ps, e] in
+                  (Ok (List.fold_left (fun e (v, _) -> ELam (v, e)) e acc), tctx)
                 end
                 | _ -> failwith "IMPOSSIBLE PATTERN TYPE"
         end
@@ -383,7 +398,17 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | Error e -> (Error e, tctx)
         | Ok cases ->
           let rules = (ty, Type.TArr (sty, ety)) :: tctx.rules in
-          (Ok (Ast.LamCase cases), { tctx with rules })
+          let (subst, errors) = Type.unify tctx.subst rules in
+          let tctx = { tctx with subst; rules = [] } in
+          match errors with
+            | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
+            | [] ->
+              let (sty, subst) = Type.expand tctx.subst sty in
+              let tctx = { tctx with subst } in
+
+              let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
+              let e = ConvCase.conv_case [EVar (("", 0L), sty), sty] (helper cases) in
+              (Ok (ELam ((("", 0L), sty), e)), tctx)
     end
     | Ast.App (f, v) -> begin
       let vty = Type.TVar ("", tctx.id)
@@ -392,8 +417,7 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let (f, tctx) = visit (Type.TArr (vty, ty)) tctx f in
       let (v, tctx) = visit vty tctx v in
       match (f, v) with
-        | (Ok f, Ok v) ->
-          (Ok (Ast.App (f, v)), tctx)
+        | (Ok f, Ok v) -> (Ok (EApp (f, v)), tctx)
         | _ -> (Error (merge_errors [f; v]), tctx)
     end
     | Ast.Unary (op, e) -> begin
@@ -404,15 +428,11 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
           let name = match op with
             | "-" -> "not" | "!" -> "negate"
             | op -> "(" ^ op ^ ")" in
-        match lookup_env name tctx.idenv with
-          | None -> (Error ["unknown unary operator " ^ op], tctx)
-          | Some vty ->
-            let (vty, tctx) = instantiate tctx vty in
-            let rules = (vty, Type.TArr (ety, ty)) :: tctx.rules in
-            (Ok (Ast.Var name), { tctx with rules }) in
+          let ty = Type.TArr (ety, ty) in
+          lookup_var name ty tctx (fun () -> "unknown unary operator " ^ op) in
       let (e, tctx) = visit ety tctx e in
       match (op, e) with
-        | (Ok op, Ok e) -> (Ok (Ast.App (op, e)), tctx)
+        | (Ok op, Ok e) -> (Ok (EApp (op, e)), tctx)
         | _ -> (Error (merge_errors [op; e]), tctx)
     end
     | Ast.Binary ("&&", p, q) -> begin
@@ -420,10 +440,10 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let (q, tctx) = visit Type.tyBool tctx q in
       match (p, q) with
         | (Ok p, Ok q) ->
-          let desugared = Ast.Case (p, [
-            Ast.Decons ("True", []), q;
-            Ast.Decons ("False", []), Ast.Cons ("False", [])]) in
-          (Ok desugared, tctx)
+          let e = ECase (p, [
+            PatDecons ("True", []), q;
+            PatDecons ("False", []), ECons ("False", [])]) in
+          (Ok e, tctx)
         | _ -> (Error (merge_errors [p; q]), tctx)
     end
     | Ast.Binary ("||", p, q) -> begin
@@ -431,10 +451,10 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let (q, tctx) = visit Type.tyBool tctx q in
       match (p, q) with
         | (Ok p, Ok q) ->
-          let desugared = Ast.Case (p, [
-            Ast.Decons ("True", []), Ast.Cons ("True", []);
-            Ast.Decons ("False", []), q]) in
-          (Ok desugared, tctx)
+          let e = ECase (p, [
+            PatDecons ("True", []), ECons ("True", []);
+            PatDecons ("False", []), q]) in
+          (Ok e, tctx)
         | _ -> (Error (merge_errors [p; q]), tctx)
     end
     | Ast.Binary (op, p, q) -> begin
@@ -445,16 +465,12 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
 
       let (op, tctx) =
         let name = "(" ^ op ^ ")" in
-        match lookup_env name tctx.idenv with
-          | None -> (Error ["unknown binary operator " ^ op], tctx)
-          | Some vty ->
-            let (vty, tctx) = instantiate tctx vty in
-            let rules = (vty, Type.TArr (pty, Type.TArr (qty, ty))) :: tctx.rules in
-            (Ok (Ast.Var name), { tctx with rules }) in
+        let ty = Type.TArr (pty, Type.TArr (qty, ty)) in
+        lookup_var name ty tctx (fun () -> "unknown binary operator " ^ op) in
       let (p, tctx) = visit pty tctx p in
       let (q, tctx) = visit qty tctx q in
       match (op, p, q) with
-        | (Ok op, Ok p, Ok q) -> (Ok (Ast.App (Ast.App (op, p), q)), tctx)
+        | (Ok op, Ok p, Ok q) -> (Ok (EApp (EApp (op, p), q)), tctx)
         | _ -> (Error (merge_errors [op; p; q]), tctx)
     end
     | Ast.Case (s, cases) -> begin
@@ -467,7 +483,17 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
           let (cases, tctx) = visit_cases sty ty tctx cases in
           match cases with
             | Error e -> (Error e, tctx)
-            | Ok cases -> (Ok (Ast.Case (s, cases)), tctx)
+            | Ok cases ->
+              let (subst, errors) = Type.unify tctx.subst tctx.rules in
+              let tctx = { tctx with subst; rules = [] } in
+              match errors with
+                | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
+                | [] ->
+                  let (sty, subst) = Type.expand tctx.subst sty in
+                  let tctx = { tctx with subst } in
+
+                  let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
+                  (Ok (ConvCase.conv_case [s, sty] (helper cases)), tctx)
     end
     | Ast.Cond (k, t, f) -> begin
       let (k, tctx) = visit Type.tyBool tctx k in
@@ -475,9 +501,8 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let (f, tctx) = visit ty tctx f in
       match (k, t, f) with
         | (Ok k, Ok t, Ok f) ->
-          let desugared = Ast.Case (k,
-            [Ast.Decons ("True", []), t; Ast.Decons ("False", []), f]) in
-          (Ok desugared, tctx)
+          let e = ECase (k, [PatDecons ("True", []), t; PatDecons ("False", []), f]) in
+          (Ok e, tctx)
         | _ -> (Error (merge_errors [k; t; f]), tctx)
     end
     | Ast.ExprTyped (e, annot) -> begin

@@ -16,11 +16,39 @@ type t =
 
 and tctor =
   | TCtorArr
-  | TCtorBool
-  | TCtorList
+  | TCtorVar of variant
 
-let tyBool = TCons (TCtorBool, [])
-let tyList elt = TCons (TCtorList, [elt])
+and variant = {
+  name : string;
+  quants : V.t list;
+
+  (* stores implicitly quantized arguments as a list *)
+  cases : (string, t list) Hashtbl.t;
+}
+
+(* data Bool = True | False *)
+let varBool : variant = {
+  name = "Bool";
+  quants = [];
+  cases = Hashtbl.create 2;
+}
+
+let tyBool = TCons (TCtorVar varBool, [])
+let () =
+  Hashtbl.replace varBool.cases "True" [];
+  Hashtbl.replace varBool.cases "False" []
+
+(* data [a] = [] | a :: [a] *)
+let varList : variant = {
+  name = "[]";
+  quants = [("a", 0L)];
+  cases = Hashtbl.create 2;
+}
+
+let tyList t = TCons (TCtorVar varList, [t])
+let () =
+  Hashtbl.replace varList.cases "[]" [];
+  Hashtbl.replace varList.cases "(::)" [TRigid ("a", 0L); tyList (TRigid ("a", 0L))]
 
 let rec output ppf = function
   | TVar n | TRigid n -> V.output ppf n
@@ -37,7 +65,7 @@ let rec output ppf = function
     fprintf ppf "(%a" output x;
     List.iter (fprintf ppf ", %a" output) xs;
     output_string ppf ")"
-  | TCons (TCtorList, [x]) -> fprintf ppf "[%a]" output x
+  | TCons (TCtorVar k, [x]) when k == varList -> fprintf ppf "[%a]" output x
   | TCons (k, []) -> output_string ppf (tctor_to_string k)
   | TCons (k, x :: xs) ->
     fprintf ppf "%s %a" (tctor_to_string k) output (check_app_prec x);
@@ -63,7 +91,7 @@ and to_string = function
     List.iter (fun x -> bprintf buf ", %s" (to_string (check_app_prec x))) xs;
     Buffer.add_string buf ")";
     Buffer.contents buf
-  | TCons (TCtorList, [x]) -> sprintf "[%s]" (to_string x)
+  | TCons (TCtorVar k, [x]) when k == varList -> sprintf "[%s]" (to_string x)
   | TCons (k, []) -> tctor_to_string k
   | TCons (k, x :: xs) ->
     let buf = Buffer.create 32 in
@@ -75,8 +103,7 @@ and to_string = function
 
 and tctor_to_string = function
   | TCtorArr -> "(->)"
-  | TCtorBool -> "Bool"
-  | TCtorList -> "[]"
+  | TCtorVar k -> k.name
 
 and check_app_prec = function
   | TApp _ | TCons (_, _ :: _) as q -> TTup [q]
@@ -139,6 +166,20 @@ let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
 
 let normalize (t : t) =
   eval V.Map.empty V.Set.empty t
+
+let quantize_cases (v : variant) =
+  let t = TCons (TCtorVar v, List.map (fun tv -> TRigid tv) v.quants) in
+  let foldf k args acc =
+    let t = List.fold_right (fun arg t -> TArr (arg, t)) args t in
+    let t = List.fold_right (fun q t -> TQuant (q, t)) v.quants t in
+    (k, t) :: acc in
+  Hashtbl.fold foldf v.cases []
+
+let inst_variant (v : variant) (args : t list) =
+  let foldf m q arg = V.Map.add q arg m in
+  let env = List.fold_left2 foldf V.Map.empty v.quants args in
+  let foldf k args acc = (k, List.map (eval env V.Set.empty) args) :: acc in
+  Hashtbl.fold foldf v.cases []
 
 let rec contains_quant = function
   | TQuant _ -> true
@@ -230,6 +271,10 @@ let unify (env : t V.Map.t) (rules : (t * t) list) =
     | (p, q) :: tl ->
       let (p, env) = shallow_subst env p in
       let (q, env) = shallow_subst env q in
+      let rec tail acc = function
+        | ([], []) -> loop env rem (List.rev_append acc tl)
+        | (x :: xs, y :: ys) -> tail ((x, y) :: acc) (xs, ys)
+        | _ -> loop env (Mismatch (p, q) :: rem) tl in
       match (p, q) with
         | (TQuant _, _) | (_, TQuant _) ->
           failwith "UNKNOWN TQUANT DURING UNIFY STEP"
@@ -245,13 +290,10 @@ let unify (env : t V.Map.t) (rules : (t * t) list) =
           loop env rem ((f1, f2) :: (a1, a2) :: tl)
 
         | (TTup xs, TTup ys)
-        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys))
-        | (TCons (TCtorBool, xs), TCons (TCtorBool, ys))
-        | (TCons (TCtorList, xs), TCons (TCtorList, ys)) ->
-          let rec tail acc = function
-            | ([], []) -> loop env rem (List.rev_append acc tl)
-            | (x :: xs, y :: ys) -> tail ((x, y) :: acc) (xs, ys)
-            | _ -> loop env (Mismatch (p, q) :: rem) tl in
+        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
+          tail [] (xs, ys)
+
+        | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) when k1 == k2 ->
           tail [] (xs, ys)
 
         | (TCons (k, x :: xs), TApp (f, a))

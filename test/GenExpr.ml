@@ -13,5 +13,6 @@ let () =
     | Ok (Some ast, _) ->
       match visit_top_expr core_tctx ast with
         | Error e -> List.iter (printf "Error: %s\n") e
-        | Ok (ast, t, _) ->
-          printf "%a\n: %a\n" Ast.output_expr ast Type.output t
+        | Ok (ast, t, tctx) ->
+          let (ast, _) = Expr.expand_type tctx.subst ast in
+          printf "%a\n: %a\n" Expr.output ast Type.output t

@@ -31,5 +31,5 @@ Just an example of it actually working fine
   >   [a] -> a
   >   _ -> 0
   > EOF
-  match [] with { [_, _, a] -> a; [_, a] -> a; [a] -> a; _ -> 0; }
+  match [] with { (::) ($0 : Int) ($1 : [Int]) -> match ($1 : [Int]) with { (::) ($2 : Int) ($3 : [Int]) -> match ($3 : [Int]) with { (::) ($4 : Int) ($5 : [Int]) -> match ($5 : [Int]) with { (::) ($6 : Int) ($7 : [Int]) -> 0; [] -> (let (a : Int) = ($4 : Int) in (a : Int)); }; [] -> (let (a : Int) = ($2 : Int) in (a : Int)); }; [] -> (let (a : Int) = ($0 : Int) in (a : Int)); }; [] -> 0; }
   : Int
