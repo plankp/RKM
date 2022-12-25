@@ -1,8 +1,9 @@
 open Printf
+module V = VarInfo
 
 type t =
-  | TVar of VarInfo.t       (* a (weak) type variable *)
-  | TRigid of VarInfo.t     (* a rigid type variable: only unifies with itself *)
+  | TVar of V.t       (* a (weak) type variable *)
+  | TRigid of V.t     (* a rigid type variable: only unifies with itself *)
   | TChr
   | TStr
   | TInt
@@ -10,7 +11,7 @@ type t =
   | TTup of t list
   | TKind
   | TCons of tctor * t list
-  | TQuant of VarInfo.t * t (* quantized over rigid variables *)
+  | TQuant of V.t * t (* quantized over rigid variables *)
   | TApp of t * t
 
 and tctor =
@@ -20,8 +21,6 @@ and tctor =
 
 let tyBool = TCons (TCtorBool, [])
 let tyList elt = TCons (TCtorList, [elt])
-
-module V = VarInfo
 
 let rec output ppf = function
   | TVar n | TRigid n -> V.output ppf n
