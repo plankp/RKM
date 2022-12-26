@@ -185,6 +185,31 @@ let gen_tuple_shape tctx elts =
       loop (ty :: acc) tctx xs in
   loop [] tctx elts
 
+let lookup_dctor n ty tctx =
+  let (subst, errors) = Type.unify tctx.subst tctx.rules in
+  let tctx = { tctx with subst; rules = [] } in
+  match errors with
+    | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
+    | [] ->
+      let (ty, subst) = Type.shallow_subst tctx.subst ty in
+      let tctx = { tctx with subst } in
+      let (ctor, ty, tctx) = match Type.normalize ty with
+        | TCons (TCtorVar v, args) -> (Type.inst_case v n args, ty, tctx)
+        | _ ->
+          match StrMap.find_opt n tctx.dctors with
+            | None -> (None, ty, tctx)
+            | Some v ->
+              let foldf (acc, tctx) _ =
+                let fresh = Type.TVar ("", tctx.id)
+                and tctx = { tctx with id = Int64.succ tctx.id } in
+                (fresh :: acc, tctx) in
+              let (args, tctx) = List.fold_left foldf ([], tctx) v.quants in
+              let args = List.rev args in
+              (Type.inst_case v n args, Type.TCons (TCtorVar v, args), tctx) in
+      match ctor with
+        | None -> (Error ["unknown data constructor named " ^ n], tctx)
+        | Some ctor -> (Ok (ctor, ty), tctx)
+
 let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
   let rec visit captures next ty tctx = function
     | Ast.Cap None ->
@@ -204,42 +229,22 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
       let rules = (ty, Type.TChr) :: tctx.rules in
       (Ok (t, captures), next, { tctx with rules })
     | Ast.Decons (k, ys) -> begin
-      let (subst, errors) = Type.unify tctx.subst tctx.rules in
-      let tctx = { tctx with subst; rules = [] } in
-      match errors with
-        | _ :: _ ->
-          (Error (List.map (Type.explain ~env:(Some subst)) errors), next, tctx)
-        | [] ->
-          let (ty, subst) = Type.shallow_subst tctx.subst ty in
-          let tctx = { tctx with subst } in
-          let (f, tctx) = match Type.normalize ty with
-            | TCons (TCtorVar v, args) -> (Type.inst_case v k args, tctx)
-            | _ ->
-              match StrMap.find_opt k tctx.dctors with
-                | None -> (None, tctx)
-                | Some v ->
-                  let foldf (acc, tctx) _ =
-                    let fresh = Type.TVar ("", tctx.id)
-                    and tctx = { tctx with id = Int64.succ tctx.id } in
-                    (fresh :: acc, tctx) in
-                  let (args, tctx) = List.fold_left foldf ([], tctx) v.quants in
-                  let args = List.rev args in
-                  let rules = (ty, Type.TCons (TCtorVar v, args)) :: tctx.rules in
-                  (Type.inst_case v k args, { tctx with rules }) in
-          match f with
-            | None -> (Error ["unknown data constructor named " ^ k], next, tctx)
-            | Some xs ->
-              let rec loop acc captures next tctx = function
-                | ([], []) ->
-                  (Ok (Ast.Decons (k, List.rev acc), captures), next, tctx)
-                | (x :: xs, y :: ys) -> begin
-                  match visit captures next x tctx y with
-                    | (Ok (p, captures), next, tctx) ->
-                      loop (p :: acc) captures next tctx (xs, ys)
-                    | error -> error
-                end
-                | _ -> (Error ["data constructor arity mismatch"], next, tctx) in
-              loop [] captures next tctx (xs, ys)
+      let (ctor_info, tctx) = lookup_dctor k ty tctx in
+      match ctor_info with
+        | Error e -> (Error e, next, tctx)
+        | Ok (xs, resty) ->
+          let rec loop acc captures next tctx = function
+            | ([], []) ->
+              let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
+              (Ok (Ast.Decons (k, List.rev acc), captures), next, tctx)
+            | (x :: xs, y :: ys) -> begin
+              match visit captures next x tctx y with
+                | (Ok (p, captures), next, tctx) ->
+                  loop (p :: acc) captures next tctx (xs, ys)
+                | error -> error
+            end
+            | _ -> (Error ["data constructor arity mismatch"], next, tctx) in
+          loop [] captures next tctx (xs, ys)
     end
     | Ast.Detup xs ->
       let (shape, tctx) = gen_tuple_shape tctx xs in
@@ -395,6 +400,35 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
             | (Error p, _) | (_, Error p) -> loop (Error p) tctx xs
             | (Ok acc, Ok x) -> loop (Ok (x :: acc)) tctx xs in
       loop (Ok []) tctx xs
+    | Ast.Cons (k, ys) -> begin
+      let (ctor_info, tctx) = lookup_dctor k ty tctx in
+      match ctor_info with
+        | Error e -> (Error e, tctx)
+        | Ok (xs, resty) ->
+          let rec loop acc tctx = function
+            | ([], []) ->
+              let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
+              (Ok (ECons (k, List.rev acc)), tctx)
+            | (x :: xs, y :: ys) -> begin
+              match visit x tctx y with
+                | (Ok e, tctx) -> loop (e :: acc) tctx (xs, ys)
+                | error -> error
+            end
+            | (remaining, []) -> begin
+              (* promote the ctor into a function then partial apply it *)
+              let rec promote lift id = function
+                | [] ->
+                  let e = ECons (k, List.rev_map (fun v -> EVar v) lift) in
+                  let e = List.fold_left (fun e a -> ELam (a, e)) e lift in
+                  let e = List.fold_right (fun a e -> EApp (e, a)) acc e in
+                  let resty = List.fold_right (fun a e -> Type.TArr (a, e)) remaining resty in
+                  (Ok e, { tctx with rules = (ty, resty) :: tctx.rules })
+                | x :: xs -> promote ((("", id), x) :: lift) (Int64.succ id) xs in
+              promote [] 0L xs
+            end
+            | _ -> (Error ["data constructor arity mismatch"], tctx) in
+          loop [] tctx (xs, ys)
+    end
     | Ast.Lam (ps, e) -> begin
       let sty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
