@@ -113,6 +113,45 @@ and check_arr_prec = function
   | TArr _ as q -> TTup [q]
   | q -> q
 
+let is_general_enough (a : t) (b : t) =
+  let rec unpeel_quants = function
+    | TQuant (_, t) -> unpeel_quants t
+    | t -> t in
+
+  let mapping = Hashtbl.create 64 in
+  let rec is_general_enough = function
+    | [] -> true
+    | (TRigid v, r) :: xs -> begin
+      match (Hashtbl.find_opt mapping v, r) with
+        | (Some (TRigid p), TRigid r) ->
+          if p = r then is_general_enough xs
+          else false
+        | (Some p, r) -> is_general_enough ((p, r) :: xs)
+        | (None, r) ->
+          Hashtbl.add mapping v r;
+          is_general_enough xs
+    end
+    | (TVar p, TVar q) :: xs when p = q ->
+      is_general_enough xs
+    | ((TChr, TChr) | (TStr, TStr) | (TInt, TInt) | (TKind, TKind)) :: xs ->
+      is_general_enough xs
+    | (TArr (p, q), TArr (s, t)) :: xs
+    | (TApp (p, q), TApp (s, t)) :: xs ->
+      is_general_enough ((p, s) :: (q, t) :: xs)
+    | (TTup xs, TTup ys) :: tl
+    | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) :: tl ->
+      tail tl (xs, ys)
+    | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) :: tl when k1 == k2 ->
+      tail tl (xs, ys)
+    | _ -> false
+
+  and tail acc = function
+    | ([], []) -> is_general_enough acc
+    | (x :: xs, y :: ys) -> tail ((x, y) :: acc) (xs, ys)
+    | _ -> false in
+
+  is_general_enough [unpeel_quants a, unpeel_quants b]
+
 let gen (ignore : V.Set.t) (t : t) : V.t list * t =
   let mapping = Hashtbl.create 64 in
   let quants = ref [] in
@@ -195,6 +234,16 @@ let rec contains_var n = function
   | TTup xs | TCons (_, xs) ->
     List.exists (contains_var n) xs
   | TQuant (_, t) -> contains_var n t
+
+let free_vars ?(acc = V.Set.empty) t =
+  let rec loop acc = function
+    | [] -> acc
+    | TVar n :: xs -> loop (V.Set.add n acc) xs
+    | (TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop acc xs
+    | (TArr (p, q) | TApp (p, q)) :: xs -> loop acc (p :: q :: xs)
+    | (TTup ys | TCons (_, ys)) :: xs -> loop acc (List.rev_append ys xs)
+    | TQuant (_, t) :: xs -> loop acc (t :: xs) in
+  loop acc [t]
 
 let rec shallow_subst env = function
   | TVar n -> begin

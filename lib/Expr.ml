@@ -205,3 +205,11 @@ and is_immediately_linked (names : V.Set.t) : expr -> bool = function
     let names = List.fold_left foldf names vb in
     is_immediately_linked names e
   | _ -> false
+
+let rec is_syntactic_value : expr -> bool = function
+  | EVar _ | ELit _ | ELam _ -> true
+  | ECons (_, xs) | ETup xs -> List.for_all is_syntactic_value xs
+  | ELet (NonRec (_, i), e) -> is_syntactic_value i && is_syntactic_value e
+  | ELet (Rec vb, e) ->
+    List.for_all (fun (_, i) -> is_syntactic_value i) vb && is_syntactic_value e
+  | _ -> false

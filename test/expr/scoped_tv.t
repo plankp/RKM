@@ -48,37 +48,8 @@ refer to the same type
   \($0 : b$6) -> \($1 : b$6) -> let (y : b$6) = ($1 : b$6) in let (x : b$6) = ($0 : b$6) in ((x : b$6), (y : b$6))
   : b$6 -> b$6 -> (b$6, b$6)
 
-Let bindings can also bind fresh type variables
-  $ GenExpr << "EOF"
-  > let x : a; x = 1 in 2 : a
-  > EOF
-  let (x$1 : Int) = 1 in let (x : Int) = (x$1 : Int) in 2
-  : Int
-
-Notice that it only closes over the scoped body and not over the initializer
-  $ GenExpr << "EOF"
-  > let x : a; x = 1 : a in 2
-  > EOF
-  Error: unknown type variable named a
-
-Also all bindings share the same type variable scope.
-The following fails because both a's are the same type variable
-  $ GenExpr << "EOF"
-  > let x : a; x = 1;
-  >     y : a; y = ()
-  > in (x, y)
-  > EOF
-  Error: Cannot unify unrelated types Int and ()
-
-Recursive bindings can bind fresh type variables that scope over both the
-initializers and the scoped body
-  $ GenExpr << "EOF"
-  > let rec x : a; x = 1 : a in 2 : a
-  > EOF
-  let rec { (x : Int) = 1 } in 2
-  : Int
-
 Not all expression contexts are allowed to bind fresh type variables
+(See discussion on let bindings in generalize.t)
   $ GenExpr << "EOF"
   > 10 : a
   > EOF
@@ -97,12 +68,3 @@ Underscore types are also allowed in expression contexts
   > EOF
   (1, "")
   : (Int, String)
-
-Underscore types are allowed in binding contexts
-  $ GenExpr << "EOF"
-  > let f : _ -> String
-  >     f True = "True"; f False = "False"
-  > in f False
-  > EOF
-  let (f$1 : Bool -> String) = \($0 : Bool) -> match ($0 : Bool) with { False -> "False"; True -> "True"; } in let (f : Bool -> String) = (f$1 : Bool -> String) in (f : Bool -> String) False
-  : String
