@@ -450,7 +450,7 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let resty = match lit with
         | LitInt _ -> Type.TInt
         | LitStr _ -> Type.TStr
-        | LitChar _ -> Type.TStr in
+        | LitChar _ -> Type.TChr in
       (Ok (ELit lit), { tctx with rules = (ty, resty) :: tctx.rules })
     end
     | Ast.Var n ->
