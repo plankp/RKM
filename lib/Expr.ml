@@ -141,3 +141,67 @@ and list_expand_type env list =
     (env, x :: acc) in
   let (env, list) = List.fold_left foldf (env, []) list in
   (List.rev list, env)
+
+let rec collect_free : expr -> V.Set.t = function
+  | ELit _ | ERaise _ | EType _ -> V.Set.empty
+  | EVar (n, _) -> V.Set.singleton n
+  | EApp (p, q) -> V.Set.union (collect_free p) (collect_free q)
+  | ECons (_, xs) | ETup xs ->
+    let foldf s k = V.Set.union (collect_free k) s in
+    List.fold_left foldf V.Set.empty xs
+  | ELam ((n, _), e) -> V.Set.remove n (collect_free e)
+  | ELet (NonRec ((n, _), i), e) ->
+    V.Set.union (collect_free i) (V.Set.remove n (collect_free e))
+  | ELet (Rec vb, e) ->
+    let foldf (u, d) ((n, _), i) =
+      (V.Set.union u (collect_free i), V.Set.add n d) in
+    let (u, d) = List.fold_left foldf (collect_free e, V.Set.empty) vb in
+    V.Set.diff u d
+  | ECase (s, cases) ->
+    let foldf d (p, e) =
+      V.Set.union d (V.Set.diff (collect_free e) (collect_captures p)) in
+    List.fold_left foldf (collect_free s) cases
+
+and collect_captures : pat -> V.Set.t = function
+  | PatIgnore | PatLit _ -> V.Set.empty
+  | PatDecons (_, xs) | PatUnpack xs ->
+    List.fold_left (fun s (n, _) -> V.Set.add n s) V.Set.empty xs
+
+(*
+ * derived from OCaml's definition
+ * https://v2.ocaml.org/manual/letrecvalues.html
+ *)
+
+let rec is_valid_rec (names : V.Set.t) (e : expr) : bool =
+  not (is_immediately_linked names e) && is_statically_constructive names e
+
+and is_statically_constructive (names : V.Set.t) : expr -> bool = function
+  | EVar _ | ELam _ -> true
+  | ECons (_, xs) | ETup xs ->
+    List.for_all (is_statically_constructive names) xs
+  | ELet (NonRec ((name, _), i), e) ->
+    is_statically_constructive names i &&
+    is_statically_constructive (V.Set.add name names) e
+  | ELet (Rec vb, e) ->
+    let rec loop dset = function
+      | [] -> is_statically_constructive dset e
+      | ((n, _), i) :: xs when is_statically_constructive names i ->
+        loop (V.Set.add n dset) xs
+      | _ -> false in
+    loop names vb
+  | t -> V.Set.disjoint names (collect_free t)
+
+and is_immediately_linked (names : V.Set.t) : expr -> bool = function
+  | EVar (n, _) -> V.Set.mem n names
+  | ELet (NonRec ((n, _), i), e) ->
+    let names =
+      if is_immediately_linked names i then V.Set.add n names
+      else names in
+    is_immediately_linked names e
+  | ELet (Rec vb, e) ->
+    let foldf dset ((n, _), i) =
+      if is_immediately_linked names i then V.Set.add n dset
+      else dset in
+    let names = List.fold_left foldf names vb in
+    is_immediately_linked names e
+  | _ -> false

@@ -315,17 +315,54 @@ let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
         | Ok (_, _, None) -> failwith "IMPOSSIBLE NO NEXT TVENV RETURNED"
         | Ok (annotty, kind, Some next) ->
           let rules = (kind, Type.TKind) :: (annotty, ty) :: tctx.rules in
-          let (subst, errors) = Type.unify tctx.subst rules in
-          let tctx = { tctx with subst; rules = [] } in
-          match errors with
-            | [] -> visit captures next ty tctx p
-            | _ ->
-              (Error (List.map (Type.explain ~env:(Some subst)) errors), next, tctx)
+          visit captures next ty { tctx with rules } p
     end in
 
   match visit StrMap.empty next ty tctx ast with
     | (Error e, _, tctx) -> (Error e, tctx)
     | (Ok (p, captures), next, tctx) -> (Ok (p, captures, next), tctx)
+
+let organize_vdefs (vdefs : Ast.ast_vdef list) =
+  let rec order m acc = function
+    | [] ->
+      (* anything left only has type annotation so order does not matter, but
+       * prefer putting it near the front *)
+      let foldf n (t, _) acc = (n, t, []) :: acc in
+      Ok (StrMap.fold foldf m (List.rev acc))
+    | Ast.DefValue (n, _, _) :: xs -> begin
+      (* if there's a value definition, we want to order by encounter order *)
+      match StrMap.find_opt n m with
+        | None -> order m acc xs (* already handled *)
+        | Some (_, None) -> failwith "IMPOSSIBLE MISSING VALUE DEFINITION"
+        | Some (t, Some (_, tl)) ->
+          order (StrMap.remove n m) ((n, t, List.rev tl) :: acc) xs
+    end
+    | _ :: xs -> order m acc xs in
+
+  let rec collect m = function
+    | [] -> order m [] vdefs
+    | Ast.DefAnnot (n, annot) :: xs -> begin
+      match StrMap.find_opt n m with
+        | Some (Some _, _) -> Error ["duplicate type annotation for " ^ n]
+        | Some (None, defs) ->
+          collect (StrMap.add n (Some annot, defs) m) xs
+        | None ->
+          collect (StrMap.add n (Some annot, None) m) xs
+    end
+    | Ast.DefValue (n, args, e) :: xs -> begin
+      let argc = List.length args in
+      match StrMap.find_opt n m with
+        | Some (t, Some (k, defs)) ->
+          if argc = 0 then Error ["duplicate definition for " ^ n]
+          else if argc <> k then Error ["argument length mismatch for " ^ n]
+          else
+            collect (StrMap.add n (t, Some (k, (args, e) :: defs)) m) xs
+        | Some (t, None) ->
+          collect (StrMap.add n (t, Some (argc, [args, e])) m) xs
+        | None ->
+          collect (StrMap.add n (None, Some (argc, [args, e])) m) xs
+    end in
+  collect StrMap.empty vdefs
 
 let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
   let open Expr in
@@ -545,6 +582,102 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | (Ok op, Ok p, Ok q) -> (Ok (EApp (EApp (op, p), q)), tctx)
         | _ -> (Error (merge_errors [op; p; q]), tctx)
     end
+    | Ast.Let (vb, e) -> begin
+      match organize_vdefs vb with
+        | Error e -> (Error e, tctx)
+        | Ok vb ->
+          let rec loop new_ids new_tvs acc tctx = function
+            | [] -> begin
+              let tctx = { tctx with
+                idenv = new_ids :: tctx.idenv;
+                tvenv = new_tvs :: tctx.tvenv } in
+              let (e, tctx) = visit ty tctx e in
+              let tctx = { tctx with
+                idenv = List.tl tctx.idenv;
+                tvenv = List.tl tctx.tvenv } in
+              match e with
+                | Error e -> (Error e, tctx)
+                | Ok e ->
+                  (* rewrite it into a series of single nonrec lets *)
+                  let e = List.fold_left (fun e (n, ty, _) -> ELet (NonRec (((n, 0L), ty), EVar ((n, 1L), ty)), e)) e acc in
+                  let e = List.fold_left (fun e (n, ty, i) -> ELet (NonRec (((n, 1L), ty), i), e)) e acc in
+                  (Ok e, tctx)
+            end
+            | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
+            | (n, None, defs) :: xs -> begin
+              let bty = Type.TVar ("", tctx.id)
+              and tctx = { tctx with id = Int64.succ tctx.id } in
+              let (e, tctx) = visit_generalized_lam bty tctx defs in
+              match e with
+                | Error e -> (Error e, tctx)
+                | Ok e -> loop (StrMap.add n bty new_ids) new_tvs ((n, bty, e) :: acc) tctx xs
+            end
+            | (n, Some annot, defs) :: xs -> begin
+              let (annot, tctx) = visit_ast_type true (Some new_tvs) tctx annot in
+              match annot with
+                | Error p -> (Error p, tctx)
+                | Ok (_, _, None) -> failwith "IMPOSSIBLE NO NEXT TVENV RETURNED"
+                | Ok (bty, kind, Some new_tvs) ->
+                  let rules = (kind, Type.TKind) :: tctx.rules in
+                  let (e, tctx) = visit_generalized_lam bty { tctx with rules } defs in
+                  match e with
+                    | Error e -> (Error e, tctx)
+                    | Ok e -> loop (StrMap.add n bty new_ids) new_tvs ((n, bty, e) :: acc) tctx xs
+            end in
+          loop StrMap.empty StrMap.empty [] tctx vb
+    end
+    | Ast.LetRec (vb, e) -> begin
+      match organize_vdefs vb with
+        | Error e -> (Error e, tctx)
+        | Ok vb ->
+          let rec proc_exprs new_ids ds acc tctx = function
+            | [] -> begin
+              let (e, tctx) = visit ty tctx e in
+              match e with
+                | Error e -> (Error e, tctx)
+                | Ok e ->
+                  let rec validate acc = function
+                    | [] -> (Ok (ELet (Rec acc, e)), tctx)
+                    | (_, i) as x :: xs ->
+                      if is_valid_rec ds i then validate (x :: acc) xs
+                      else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
+                  validate [] acc
+            end
+            | (n, _, defs) :: xs -> begin
+              let bty = StrMap.find n new_ids in
+              let (e, tctx) = visit_generalized_lam bty tctx defs in
+              match e with
+                | Error e -> (Error e, tctx)
+                | Ok e ->
+                  let n = (n, 0L) in
+                  proc_exprs new_ids (V.Set.add n ds) (((n, bty), e) :: acc) tctx xs
+            end in
+
+          let rec fill_scope new_ids new_tvs tctx = function
+            | [] ->
+              let tctx = { tctx with
+                idenv = new_ids :: tctx.idenv;
+                tvenv = new_tvs :: tctx.tvenv } in
+              let (e, tctx) = proc_exprs new_ids V.Set.empty [] tctx vb in
+              let tctx = { tctx with
+                idenv = List.tl tctx.idenv;
+                tvenv = List.tl tctx.tvenv } in
+              (e, tctx)
+            | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
+            | (n, None, _) :: xs ->
+              let bty = Type.TVar ("", tctx.id)
+              and tctx = { tctx with id = Int64.succ tctx.id } in
+              fill_scope (StrMap.add n bty new_ids) new_tvs tctx xs
+            | (n, Some annot, _) :: xs ->
+              let (annot, tctx) = visit_ast_type true (Some new_tvs) tctx annot in
+              match annot with
+                | Error p -> (Error p, tctx)
+                | Ok (_, _, None) -> failwith "IMPOSSIBLE NO NEXT TVENV RETURNED"
+                | Ok (bty, kind, Some new_tvs) ->
+                  let rules = (kind, Type.TKind) :: tctx.rules in
+                  fill_scope (StrMap.add n bty new_ids) new_tvs { tctx with rules } xs in
+          fill_scope StrMap.empty StrMap.empty tctx vb
+    end
     | Ast.Case (s, cases) -> begin
       let sty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
@@ -584,14 +717,8 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | Error p -> (Error p, tctx)
         | Ok (annotty, kind, _) ->
           let rules = (kind, Type.TKind) :: (annotty, ty) :: tctx.rules in
-          let (subst, errors) = Type.unify tctx.subst rules in
-          let tctx = { tctx with subst; rules = [] } in
-          match errors with
-            | [] -> visit ty tctx e
-            | _ ->
-              (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
-    end
-    | _ -> (Error ["Not implemented yet"], tctx) in
+          visit ty { tctx with rules } e
+    end in
 
   visit ty tctx ast
 
