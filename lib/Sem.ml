@@ -398,20 +398,16 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
     let rec loop acc tctx = function
       | [] -> (Ok (List.rev acc), tctx)
       | (p, e) :: xs ->
-        let (p, tctx) = visit_pat sty StrMap.empty tctx p in
-        match p with
-          | Error e -> (Error e, tctx)
-          | Ok (p, new_ids, new_tvs) ->
-            let tctx = { tctx with
-              idenv = new_ids :: tctx.idenv;
-              tvenv = new_tvs :: tctx.tvenv } in
-            let (e, tctx) = visit ety tctx e in
-            let tctx = { tctx with
-              idenv = List.tl tctx.idenv;
-              tvenv = List.tl tctx.tvenv } in
-            match e with
-              | Error e -> (Error e, tctx)
-              | Ok e -> loop ((p, e) :: acc) tctx xs in
+        let< ((p, new_ids, new_tvs), tctx) = visit_pat sty StrMap.empty tctx p in
+        let tctx = { tctx with
+          idenv = new_ids :: tctx.idenv;
+          tvenv = new_tvs :: tctx.tvenv } in
+        let (e, tctx) = visit ety tctx e in
+        let tctx = { tctx with
+          idenv = List.tl tctx.idenv;
+          tvenv = List.tl tctx.tvenv } in
+        let< (e, tctx) = (e, tctx) in
+        loop ((p, e) :: acc) tctx xs in
     loop [] tctx cases
 
   and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list) =
@@ -436,32 +432,25 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       | _ -> failwith "IMPOSSIBLE GENERALIZE LAM PATTERN CASE" in
 
     let mat = List.map proj_pack mat in
-    let (cases, tctx) = visit_cases sty ety tctx mat in
-    match cases with
-      | Error e -> (Error e, tctx)
-      | Ok mat ->
-        let (subst, errors) = Type.unify tctx.subst tctx.rules in
-        let tctx = { tctx with subst; rules = [] } in
-        match errors with
-          | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
-          | [] ->
-            match Type.expand subst sty with
-              | (Type.TTup xs, subst) -> begin
-                let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
-                let rules = (ty, t) :: tctx.rules in
-                let tctx = { tctx with rules; subst } in
+    let< (mat, tctx) = visit_cases sty ety tctx mat in
+    let< ((), tctx) = unify_ctx tctx in
+    match Type.expand tctx.subst sty with
+      | (Type.TTup xs, subst) -> begin
+        let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
+        let rules = (ty, t) :: tctx.rules in
+        let tctx = { tctx with rules; subst } in
 
-                let foldf (id, acc) ty =
-                  let tmp = (("", id), ty) in
-                  (Int64.succ id, (tmp, ty) :: acc) in
-                let (id, acc) = List.fold_left foldf (0L, []) xs in
+        let foldf (id, acc) ty =
+          let tmp = (("", id), ty) in
+          (Int64.succ id, (tmp, ty) :: acc) in
+        let (id, acc) = List.fold_left foldf (0L, []) xs in
 
-                let inputs = List.rev_map (fun (v, ty) -> (EVar v, ty)) acc in
-                let mat = List.map proj_unpack mat in
-                let e = ConvCase.conv id inputs mat in
-                (Ok (List.fold_left (fun e (v, _) -> ELam (v, e)) e acc), tctx)
-              end
-              | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
+        let inputs = List.rev_map (fun (v, ty) -> (EVar v, ty)) acc in
+        let mat = List.map proj_unpack mat in
+        let e = ConvCase.conv id inputs mat in
+        (Ok (List.fold_left (fun e (v, _) -> ELam (v, e)) e acc), tctx)
+      end
+      | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
 
   and lookup_var n ty tctx errf =
     match lookup_env n tctx.idenv with
@@ -490,11 +479,9 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
 
       let rec loop acc tctx = function
         | ([], []) -> (Ok (ETup (List.rev acc)), tctx)
-        | (x :: xs, y :: ys) -> begin
-          match visit x tctx y with
-            | (Ok e, tctx) -> loop (e :: acc) tctx (xs, ys)
-            | error -> error
-        end
+        | (x :: xs, y :: ys) ->
+          let< (e, tctx) = visit x tctx y in
+          loop (e :: acc) tctx (xs, ys)
         | _ -> failwith "IMPOSSIBLE DIMENSION MISMATCH" in
       loop [] tctx (shape, xs)
     end
@@ -516,33 +503,27 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
             | (Ok acc, Ok x) -> loop (Ok (x :: acc)) tctx xs in
       loop (Ok []) tctx xs
     | Ast.Cons (k, ys) -> begin
-      let (ctor_info, tctx) = lookup_dctor k ty tctx in
-      match ctor_info with
-        | Error e -> (Error e, tctx)
-        | Ok (xs, resty) ->
-          let rec loop acc tctx = function
-            | ([], []) ->
-              let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
-              (Ok (ECons (k, List.rev acc)), tctx)
-            | (x :: xs, y :: ys) -> begin
-              match visit x tctx y with
-                | (Ok e, tctx) -> loop (e :: acc) tctx (xs, ys)
-                | error -> error
-            end
-            | (remaining, []) -> begin
-              (* promote the ctor into a function then partial apply it *)
-              let rec promote lift id = function
-                | [] ->
-                  let e = ECons (k, List.rev_map (fun v -> EVar v) lift) in
-                  let e = List.fold_left (fun e a -> ELam (a, e)) e lift in
-                  let e = List.fold_right (fun a e -> EApp (e, a)) acc e in
-                  let resty = List.fold_right (fun a e -> Type.TArr (a, e)) remaining resty in
-                  (Ok e, { tctx with rules = (ty, resty) :: tctx.rules })
-                | x :: xs -> promote ((("", id), x) :: lift) (Int64.succ id) xs in
-              promote [] 0L xs
-            end
-            | _ -> (Error ["data constructor arity mismatch"], tctx) in
-          loop [] tctx (xs, ys)
+      let< ((xs, resty), tctx) = lookup_dctor k ty tctx in
+      let rec loop acc tctx = function
+        | ([], []) ->
+          let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
+          (Ok (ECons (k, List.rev acc)), tctx)
+        | (x :: xs, y :: ys) ->
+          let< (e, tctx) = visit x tctx y in
+          loop (e :: acc) tctx (xs, ys)
+        | (remaining, []) ->
+          (* promote the ctor into a function then partial apply it *)
+          let rec promote lift id = function
+            | [] ->
+              let e = ECons (k, List.rev_map (fun v -> EVar v) lift) in
+              let e = List.fold_left (fun e a -> ELam (a, e)) e lift in
+              let e = List.fold_right (fun a e -> EApp (e, a)) acc e in
+              let resty = List.fold_right (fun a e -> Type.TArr (a, e)) remaining resty in
+              (Ok e, { tctx with rules = (ty, resty) :: tctx.rules })
+            | x :: xs -> promote ((("", id), x) :: lift) (Int64.succ id) xs in
+          promote [] 0L xs
+        | _ -> (Error ["data constructor arity mismatch"], tctx) in
+      loop [] tctx (xs, ys)
     end
     | Ast.Lam (ps, e) ->
       visit_generalized_lam ty tctx [ps, e]
@@ -620,13 +601,12 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
               let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
               let (e, tctx) = visit ty tctx e in
               let tctx = { tctx with idenv = List.tl tctx.idenv } in
-              match e with
-                | Error e -> (Error e, tctx)
-                | Ok e ->
-                  (* rewrite it into a series of single nonrec lets *)
-                  let e = List.fold_left (fun e (n, ty, _) -> ELet (NonRec (((n, 0L), ty), EVar ((n, 1L), ty)), e)) e acc in
-                  let e = List.fold_left (fun e (n, ty, i) -> ELet (NonRec (((n, 1L), ty), i), e)) e acc in
-                  (Ok e, tctx)
+              let< (e, tctx) = (e, tctx) in
+
+              (* rewrite it into a series of single nonrec lets *)
+              let e = List.fold_left (fun e (n, ty, _) -> ELet (NonRec (((n, 0L), ty), EVar ((n, 1L), ty)), e)) e acc in
+              let e = List.fold_left (fun e (n, ty, i) -> ELet (NonRec (((n, 1L), ty), i), e)) e acc in
+              (Ok e, tctx)
             end
             | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
             | (n, None, defs) :: xs -> begin
@@ -674,26 +654,19 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | Error e -> (Error e, tctx)
         | Ok vb ->
           let rec proc_exprs new_ids ds acc tctx = function
-            | [] -> begin
-              let (e, tctx) = visit ty tctx e in
-              match e with
-                | Error e -> (Error e, tctx)
-                | Ok e ->
-                  let rec validate acc = function
-                    | [] -> (Ok (ELet (Rec acc, e)), tctx)
-                    | (_, i) as x :: xs ->
-                      if is_valid_rec ds i then validate (x :: acc) xs
-                      else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
-                  validate [] acc
-            end
+            | [] ->
+              let< (e, tctx) = visit ty tctx e in
+              let rec validate acc = function
+                | [] -> (Ok (ELet (Rec acc, e)), tctx)
+                | (_, i) as x :: xs ->
+                  if is_valid_rec ds i then validate (x :: acc) xs
+                  else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
+              validate [] acc
             | (n, None, defs) :: xs -> begin
               let bty = StrMap.find n new_ids in
-              let (e, tctx) = visit_generalized_lam bty tctx defs in
-              match e with
-                | Error e -> (Error e, tctx)
-                | Ok e ->
-                  let n = (n, 0L) in
-                  proc_exprs new_ids (V.Set.add n ds) (((n, bty), e) :: acc) tctx xs
+              let< (e, tctx) = visit_generalized_lam bty tctx defs in
+              let n = (n, 0L) in
+              proc_exprs new_ids (V.Set.add n ds) (((n, bty), e) :: acc) tctx xs
             end
             | (n, Some _, defs) :: xs -> begin
               let infty = Type.TVar ("", tctx.id)
@@ -747,24 +720,14 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
     | Ast.Case (s, cases) -> begin
       let sty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
-      let (s, tctx) = visit sty tctx s in
-      match s with
-        | Error e -> (Error e, tctx)
-        | Ok s ->
-          let (cases, tctx) = visit_cases sty ty tctx cases in
-          match cases with
-            | Error e -> (Error e, tctx)
-            | Ok cases ->
-              let (subst, errors) = Type.unify tctx.subst tctx.rules in
-              let tctx = { tctx with subst; rules = [] } in
-              match errors with
-                | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
-                | [] ->
-                  let (sty, subst) = Type.expand tctx.subst sty in
-                  let tctx = { tctx with subst } in
+      let< (s, tctx) = visit sty tctx s in
+      let< (cases, tctx) = visit_cases sty ty tctx cases in
+      let< ((), tctx) = unify_ctx tctx in
+      let (sty, subst) = Type.expand tctx.subst sty in
+      let tctx = { tctx with subst } in
 
-                  let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
-                  (Ok (ConvCase.conv 0L [s, sty] (helper cases)), tctx)
+      let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
+      (Ok (ConvCase.conv 0L [s, sty] (helper cases)), tctx)
     end
     | Ast.Cond (k, t, f) -> begin
       let (k, tctx) = visit Type.tyBool tctx k in
@@ -778,12 +741,9 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
     end
     | Ast.ExprTyped (e, annot) -> begin
       (* solve the type first to help resolve ambiguous data constructors *)
-      let (annot, tctx) = visit_ast_type true None tctx annot in
-      match annot with
-        | Error p -> (Error p, tctx)
-        | Ok (annotty, kind, _) ->
-          let rules = (kind, Type.TKind) :: (annotty, ty) :: tctx.rules in
-          visit ty { tctx with rules } e
+      let< ((annotty, kind, _), tctx) = visit_ast_type true None tctx annot in
+      let rules = (kind, Type.TKind) :: (annotty, ty) :: tctx.rules in
+      visit ty { tctx with rules } e
     end in
 
   visit ty tctx ast
@@ -794,13 +754,11 @@ let visit_top_expr (tctx : tctx) (ast : Ast.ast_expr) =
   match visit_expr resty tctx ast with
     | (Error e, _) -> Error e
     | (Ok ast, tctx) ->
-      let (subst, errors) = Type.unify tctx.subst tctx.rules in
-      match errors with
-        | _ :: _ ->
-          Error (List.map (Type.explain ~env:(Some subst)) errors)
-        | [] ->
-          let (resty, subst) = Type.expand subst resty in
-          Ok (ast, resty, { tctx with subst; rules = [] })
+      match unify_ctx tctx with
+        | (Error e, _) -> Error e
+        | (Ok (), tctx) ->
+          let (resty, subst) = Type.expand tctx.subst resty in
+          Ok (ast, resty, { tctx with subst })
 
 let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
   match ast with
