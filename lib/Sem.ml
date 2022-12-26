@@ -349,6 +349,55 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
               | Ok e -> loop ((p, e) :: acc) tctx xs in
     loop [] tctx cases
 
+  and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list) =
+    let sty = Type.TVar ("", tctx.id)
+    and tctx = { tctx with id = Int64.succ tctx.id } in
+    let ety = Type.TVar ("", tctx.id)
+    and tctx = { tctx with id = Int64.succ tctx.id } in
+
+    (*
+     * ordinary lambdas  | lambda cases  | generalized lambdas
+     * \p11 p12... -> e1 | \p11 -> e1    | \p11 p12... -> e1
+     *                   |  p21 -> e2... |  p21 p22... -> e2...
+     *
+     * the idea is to view generalized lambdas as this:
+     * \x1 x2... -> match x1, x2, ... with p11, p12, ... -> e1
+     *                                     p21, p22, ... -> e2...
+     *)
+
+    let proj_pack (ps, e) = (Ast.Detup ps, e) in
+    let proj_unpack = function
+      | (Ast.Detup ps, e) -> (ps, e)
+      | _ -> failwith "IMPOSSIBLE GENERALIZE LAM PATTERN CASE" in
+
+    let mat = List.map proj_pack mat in
+    let (cases, tctx) = visit_cases sty ety tctx mat in
+    match cases with
+      | Error e -> (Error e, tctx)
+      | Ok mat ->
+        let (subst, errors) = Type.unify tctx.subst tctx.rules in
+        let tctx = { tctx with subst; rules = [] } in
+        match errors with
+          | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
+          | [] ->
+            match Type.expand subst sty with
+              | (Type.TTup xs, subst) -> begin
+                let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
+                let rules = (ty, t) :: tctx.rules in
+                let tctx = { tctx with rules; subst } in
+
+                let foldf (id, acc) ty =
+                  let tmp = (("", id), ty) in
+                  (Int64.succ id, (tmp, ty) :: acc) in
+                let (id, acc) = List.fold_left foldf (0L, []) xs in
+
+                let inputs = List.rev_map (fun (v, ty) -> (EVar v, ty)) acc in
+                let mat = List.map proj_unpack mat in
+                let e = ConvCase.conv id inputs mat in
+                (Ok (List.fold_left (fun e (v, _) -> ELam (v, e)) e acc), tctx)
+              end
+              | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
+
   and lookup_var n ty tctx errf =
     match lookup_env n tctx.idenv with
       | None -> (Error [errf ()], tctx)
@@ -429,61 +478,10 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
             | _ -> (Error ["data constructor arity mismatch"], tctx) in
           loop [] tctx (xs, ys)
     end
-    | Ast.Lam (ps, e) -> begin
-      let sty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let ety = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let (cases, tctx) = visit_cases sty ety tctx [Ast.Detup ps, e] in
-      match cases with
-        | Error e -> (Error e, tctx)
-        | Ok [(Ast.Detup ps, e)] -> begin
-          let (subst, errors) = Type.unify tctx.subst tctx.rules in
-          let tctx = { tctx with subst; rules = [] } in
-          match errors with
-            | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
-            | [] ->
-              match Type.expand subst sty with
-                | (Type.TTup xs, subst) -> begin
-                  let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
-                  let rules = (ty, t) :: tctx.rules in
-                  let tctx = { tctx with rules; subst } in
-
-                  let foldf (id, acc) ty =
-                    let tmp = (("", id), ty) in
-                    (Int64.succ id, (tmp, ty) :: acc) in
-                  let (_, acc) = List.fold_left foldf (0L, []) xs in
-
-                  let inputs = List.rev_map (fun (v, ty) -> (EVar v, ty)) acc in
-                  let e = ConvCase.conv_case inputs [ps, e] in
-                  (Ok (List.fold_left (fun e (v, _) -> ELam (v, e)) e acc), tctx)
-                end
-                | _ -> failwith "IMPOSSIBLE PATTERN TYPE"
-        end
-        | Ok _ -> failwith "IMPOSSIBLE NUMBER OF CASES"
-    end
-    | Ast.LamCase cases -> begin
-      let sty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let ety = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let (cases, tctx) = visit_cases sty ety tctx cases in
-      match cases with
-        | Error e -> (Error e, tctx)
-        | Ok cases ->
-          let rules = (ty, Type.TArr (sty, ety)) :: tctx.rules in
-          let (subst, errors) = Type.unify tctx.subst rules in
-          let tctx = { tctx with subst; rules = [] } in
-          match errors with
-            | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
-            | [] ->
-              let (sty, subst) = Type.expand tctx.subst sty in
-              let tctx = { tctx with subst } in
-
-              let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
-              let e = ConvCase.conv_case [EVar (("", 0L), sty), sty] (helper cases) in
-              (Ok (ELam ((("", 0L), sty), e)), tctx)
-    end
+    | Ast.Lam (ps, e) ->
+      visit_generalized_lam ty tctx [ps, e]
+    | Ast.LamCase cases ->
+      visit_generalized_lam ty tctx (List.map (fun (p, e) -> ([p], e)) cases)
     | Ast.App (f, v) -> begin
       let vty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
@@ -567,7 +565,7 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
                   let tctx = { tctx with subst } in
 
                   let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
-                  (Ok (ConvCase.conv_case [s, sty] (helper cases)), tctx)
+                  (Ok (ConvCase.conv 0L [s, sty] (helper cases)), tctx)
     end
     | Ast.Cond (k, t, f) -> begin
       let (k, tctx) = visit Type.tyBool tctx k in

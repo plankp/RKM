@@ -89,10 +89,10 @@ let search_pivot pats =
     | tl -> (List.rev acc, tl) in
   loop [] pats
 
-let conv_case (s : scrut list) (m : pat_matrix) =
-  let rec conv id s = function
+let rec conv (id : int64) (s : scrut list) (m : pat_matrix) =
+  match m with
     | [] -> ERaise "UNHANDLED PATTERN"
-    | (x, action) :: _ as m ->
+    | (x, action) :: _ ->
       match search_pivot x with
         | (hd, []) -> begin
           (* first row was all wildcards, we're done *)
@@ -141,5 +141,4 @@ let conv_case (s : scrut list) (m : pat_matrix) =
               ECase (s, cases)
 
             | _ ->
-              ECase (s, [PatIgnore, conv id rem (defaulted (s, ty) pivot m)]) in
-  conv 0L s m
+              ECase (s, [PatIgnore, conv id rem (defaulted (s, ty) pivot m)])

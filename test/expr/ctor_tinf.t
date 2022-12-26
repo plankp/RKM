@@ -2,8 +2,8 @@ This one searches the currently accessible data ctors
   $ GenExpr << "EOF"
   > \match _ :: _ -> "not-empty"
   > EOF
-  \($0 : [$3]) -> match ($0 : [$3]) with { (::) ($0 : $3) ($1 : [$3]) -> "not-empty"; [] -> (Raise# UNHANDLED PATTERN); }
-  : [$3] -> String
+  \($0 : [$4]) -> match ($0 : [$4]) with { (::) ($1 : $4) ($2 : [$4]) -> "not-empty"; [] -> (Raise# UNHANDLED PATTERN); }
+  : [$4] -> String
 
 This one uses the scrutinee's type information to do the lookup
   $ GenExpr << "EOF"

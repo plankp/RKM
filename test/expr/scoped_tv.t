@@ -19,14 +19,14 @@ Basically patterns can bind fresh type variables
   > \match (x : a, y) -> (y, x : a)
   >        (x, y : a) -> (y : a, x)
   > EOF
-  \($0 : (a$5, a$10)) -> match ($0 : (a$5, a$10)) with { (($0 : a$5), ($1 : a$10)) -> let (x : a$5) = ($0 : a$5) in let (y : a$10) = ($1 : a$10) in ((y : a$10), (x : a$5)); }
-  : (a$5, a$10) -> (a$10, a$5)
+  \($0 : (a$6, a$12)) -> match ($0 : (a$6, a$12)) with { (($1 : a$6), ($2 : a$12)) -> let (x : a$6) = ($1 : a$6) in let (y : a$12) = ($2 : a$12) in ((y : a$12), (x : a$6)); }
+  : (a$6, a$12) -> (a$12, a$6)
 
   $ GenExpr << "EOF"
   > \match (x : a, y : a) -> (y, x)
   > EOF
-  \($0 : (a$5, a$5)) -> match ($0 : (a$5, a$5)) with { (($0 : a$5), ($1 : a$5)) -> let (x : a$5) = ($0 : a$5) in let (y : a$5) = ($1 : a$5) in ((y : a$5), (x : a$5)); }
-  : (a$5, a$5) -> (a$5, a$5)
+  \($0 : (a$6, a$6)) -> match ($0 : (a$6, a$6)) with { (($1 : a$6), ($2 : a$6)) -> let (x : a$6) = ($1 : a$6) in let (y : a$6) = ($2 : a$6) in ((y : a$6), (x : a$6)); }
+  : (a$6, a$6) -> (a$6, a$6)
 
   $ GenExpr << "EOF"
   > \(x : a) (y : a) -> (x, y)
