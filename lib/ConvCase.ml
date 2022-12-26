@@ -42,6 +42,8 @@ let partition (lenenc : 'a list) (s : 'b list) (m : pat_matrix) =
   let (pivot, m) = row_wise [] [] m in
   (s, pivot, rem, m)
 
+let bind name id ty init body = ELet (NonRec (((name, id), ty), init), body)
+
 let specialize_tup (s : expr) (xs : Type.t list) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let expansion = lazy (List.map (fun _ -> Ast.Cap None) xs) in
   let foldf acc (m, a) = function
@@ -50,7 +52,7 @@ let specialize_tup (s : expr) (xs : Type.t list) (pivot : Ast.ast_pat list) (m :
     | Ast.Cap None ->
       (List.rev_append (Lazy.force expansion) m, a) :: acc
     | Ast.Cap (Some cap) ->
-      (List.rev_append (Lazy.force expansion) m, ELet (((cap, 0L), TTup xs), s, a)) :: acc
+      (List.rev_append (Lazy.force expansion) m, bind cap 0L (TTup xs) s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -62,7 +64,7 @@ let specialize_var ((s, ty) : scrut) (k : string) (xs : Type.t list) (pivot : As
     | Ast.Cap None ->
       (List.rev_append (Lazy.force expansion) m, a) :: acc
     | Ast.Cap (Some cap) ->
-      (List.rev_append (Lazy.force expansion) m, ELet (((cap, 0L), ty), s, a)) :: acc
+      (List.rev_append (Lazy.force expansion) m, bind cap 0L ty s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -70,14 +72,14 @@ let specialize_lit ((s, ty) : scrut) (lit : Ast.ast_lit) (pivot : Ast.ast_pat li
   let foldf acc (m, a) = function
     | Ast.Match v when v = lit -> (m, a) :: acc
     | Ast.Cap None -> (m, a) :: acc
-    | Ast.Cap (Some cap) -> (m, ELet (((cap, 0L), ty), s, a)) :: acc
+    | Ast.Cap (Some cap) -> (m, bind cap 0L ty s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
 let defaulted ((s, ty) : scrut) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let foldf acc (m, a) = function
     | Ast.Cap None -> (m, a) :: acc
-    | Ast.Cap (Some cap) -> (m, ELet (((cap, 0L), ty), s, a)) :: acc
+    | Ast.Cap (Some cap) -> (m, bind cap 0L ty s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -95,7 +97,7 @@ let conv_case (s : scrut list) (m : pat_matrix) =
         | (hd, []) -> begin
           (* first row was all wildcards, we're done *)
           let foldf action (s, ty) = function
-            | Ast.Cap (Some k) -> ELet (((k, 0L), ty), s, action)
+            | Ast.Cap (Some k) -> bind k 0L ty s action
             | _ -> action in
           List.fold_left2 foldf action s hd
         end
