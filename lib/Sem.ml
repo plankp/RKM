@@ -733,6 +733,26 @@ let visit_top_defs (tctx : tctx) (vb : Ast.ast_vdef list) =
     | Error e -> Error e
     | Ok (new_ids, _) -> Ok ({ tctx with idenv = new_ids :: tctx.idenv })
 
+let visit_top_externs (tctx : tctx) (vb : Ast.ast_extern list) =
+  let rec loop map tctx = function
+    | [] ->
+      let< ((), tctx) = unify_ctx tctx in
+      (Ok map, tctx)
+    | (n, annot, _) :: xs ->
+      let< ((annot, kind, _), tctx) = visit_ast_type false None tctx annot in
+      let tctx = { tctx with rules = (kind, Type.TKind) :: tctx.rules } in
+      let updatef = function
+        | None -> Some annot
+        | t -> t in
+      let next = StrMap.update n updatef map in
+      if next == map then (Error ["duplicate extern definition " ^ n], tctx)
+      else loop next tctx xs in
+
+  match loop StrMap.empty tctx vb with
+    | (Error e, _) -> Error e
+    | (Ok m, tctx) ->
+      Ok ({ tctx with idenv = m :: tctx.idenv })
+
 let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
   match ast with
     | Ast.TopAlias aliases ->
@@ -757,6 +777,8 @@ let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
       loop tctx StrMap.empty [] aliases
     | Ast.TopDef defs ->
       visit_top_defs tctx defs
+    | Ast.TopExtern defs ->
+      visit_top_externs tctx defs
     | Ast.TopExpr e -> begin
       match visit_top_expr tctx e with
         | Error e -> Error e

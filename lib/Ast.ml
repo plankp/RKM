@@ -3,7 +3,7 @@ open Printf
 type ast_toplevel =
   | TopExpr of ast_expr
   | TopDef of ast_vdef list
-  | TopExtern of (string * ast_typ * string) list
+  | TopExtern of ast_extern list
   | TopAlias of ast_alias list
   | TopData of (string * string list * (string * ast_typ list) list) list
 
@@ -43,6 +43,9 @@ and ast_typ =
 and ast_vdef =
   | DefValue of string * ast_pat list * ast_expr
   | DefAnnot of string * ast_typ
+
+and ast_extern =
+  string * ast_typ * string
 
 and ast_alias =
   string * string list * ast_typ
