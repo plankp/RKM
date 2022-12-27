@@ -700,7 +700,9 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let tctx = { tctx with subst } in
 
       let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
-      (Ok (ConvCase.conv 0L [s, sty] (helper cases)), tctx)
+      let tmp = (("", 0L), sty) in
+      (Ok (ELet (NonRec (tmp, s),
+        ConvCase.conv 1L [EVar tmp, sty] (helper cases))), tctx)
     end
     | Ast.Cond (k, t, f) -> begin
       let (k, tctx) = visit Type.tyBool tctx k in

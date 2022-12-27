@@ -5,7 +5,7 @@ bind to an Int in the first case and String in the second case
   >   (x : a, y) -> (y, x : a)
   >   (x, y : a) -> (y : a, x)
   > EOF
-  match (1, "") with { (($0 : Int), ($1 : String)) -> let (x : Int) = ($0 : Int) in let (y : String) = ($1 : String) in ((y : String), (x : Int)); }
+  let ($0 : (Int, String)) = (1, "") in match ($0 : (Int, String)) with { (($1 : Int), ($2 : String)) -> let (x : Int) = ($1 : Int) in let (y : String) = ($2 : String) in ((y : String), (x : Int)); }
   : (String, Int)
 
 This does not type check because both a's refer to the same type variable
@@ -59,7 +59,7 @@ Underscore types are allowed in pattern contexts
   $ GenExpr << "EOF"
   > match [1] with [x : _] -> x
   > EOF
-  match (::) 1 [] with { (::) ($0 : Int) ($1 : [Int]) -> match ($1 : [Int]) with { (::) ($2 : Int) ($3 : [Int]) -> (Raise# UNHANDLED PATTERN); [] -> let (x : Int) = ($0 : Int) in (x : Int); }; [] -> (Raise# UNHANDLED PATTERN); }
+  let ($0 : [Int]) = (::) 1 [] in match ($0 : [Int]) with { (::) ($1 : Int) ($2 : [Int]) -> match ($2 : [Int]) with { (::) ($3 : Int) ($4 : [Int]) -> (Raise# UNHANDLED PATTERN); [] -> let (x : Int) = ($1 : Int) in (x : Int); }; [] -> (Raise# UNHANDLED PATTERN); }
   : Int
 
 Underscore types are also allowed in expression contexts

@@ -141,4 +141,4 @@ let rec conv (id : int64) (s : scrut list) (m : pat_matrix) =
               ECase (s, cases)
 
             | _ ->
-              ECase (s, [PatIgnore, conv id rem (defaulted (s, ty) pivot m)])
+              conv id rem (defaulted (s, ty) pivot m)

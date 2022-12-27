@@ -31,5 +31,12 @@ Just an example of it actually working fine
   >   [a] -> a
   >   _ -> 0
   > EOF
-  match [] with { (::) ($0 : Int) ($1 : [Int]) -> match ($1 : [Int]) with { (::) ($2 : Int) ($3 : [Int]) -> match ($3 : [Int]) with { (::) ($4 : Int) ($5 : [Int]) -> match ($5 : [Int]) with { (::) ($6 : Int) ($7 : [Int]) -> 0; [] -> let (a : Int) = ($4 : Int) in (a : Int); }; [] -> let (a : Int) = ($2 : Int) in (a : Int); }; [] -> let (a : Int) = ($0 : Int) in (a : Int); }; [] -> 0; }
+  let ($0 : [Int]) = [] in match ($0 : [Int]) with { (::) ($1 : Int) ($2 : [Int]) -> match ($2 : [Int]) with { (::) ($3 : Int) ($4 : [Int]) -> match ($4 : [Int]) with { (::) ($5 : Int) ($6 : [Int]) -> match ($6 : [Int]) with { (::) ($7 : Int) ($8 : [Int]) -> 0; [] -> let (a : Int) = ($5 : Int) in (a : Int); }; [] -> let (a : Int) = ($3 : Int) in (a : Int); }; [] -> let (a : Int) = ($1 : Int) in (a : Int); }; [] -> 0; }
   : Int
+
+Make sure scrutinee does not get duplicated (at least when it shouldn't be)
+  $ GenExpr << "EOF"
+  > match (\x -> x) (\x -> x) with (a|a) -> ""
+  > EOF
+  let ($0 : $8 -> $8) = (\($0 : $8 -> $8) -> let (x : $8 -> $8) = ($0 : $8 -> $8) in (x : $8 -> $8)) (\($0 : $8) -> let (x : $8) = ($0 : $8) in (x : $8)) in let (a : $8 -> $8) = ($0 : $8 -> $8) in ""
+  : String
