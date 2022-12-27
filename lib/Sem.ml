@@ -196,19 +196,17 @@ let visit_alias (tctx : tctx) ((n, args, t) : Ast.ast_alias) =
       match visit_ast_type false None tctx t with
         | (Error e, _) -> Error e
         | (Ok (t, k, _), tctx) ->
-          let (subst, errors) = unify V.Map.empty tctx.rules in
-          let tctx = { tctx with tvenv = []; rules = [] } in
-          match errors with
-            | _ :: _ -> Error (List.map (explain ~env:(Some subst)) errors)
-            | [] ->
-              let (k, subst) = expand subst k in
+          match unify_ctx { tctx with tvenv = [] } with
+            | (Error e, _) -> Error e
+            | (Ok (), tctx) ->
+              let (k, subst) = expand tctx.subst k in
               let foldf (q, qk) (t, k, subst) =
                 let (qk, subst) = expand subst qk in
                 (TQuant (q, t), TArr (qk, k), subst) in
-              let (t, k, _) = List.fold_right foldf args (t, k, subst) in
-              let (qs, k) = Type.gen V.Set.empty k in
-              let k = List.fold_right (fun q k -> Type.TQuant (q, k)) qs k in
-              Ok (n, t, k, tctx)
+              let (t, k, subst) = List.fold_right foldf args (t, k, subst) in
+              let (qs, k) = gen V.Set.empty k in
+              let k = List.fold_right (fun q k -> TQuant (q, k)) qs k in
+              Ok (n, t, k, { tctx with subst })
 
 let merge_map m overwrite =
   StrMap.fold StrMap.add overwrite m
@@ -761,6 +759,73 @@ let visit_top_externs (tctx : tctx) (vb : Ast.ast_extern list) =
     | (Ok m, tctx) ->
       Ok ({ tctx with idenv = m :: tctx.idenv })
 
+let visit_top_data (tctx : tctx) (dats : Ast.ast_data list) =
+  if tctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
+  if tctx.rules <> [] then failwith "RULES NOT EMPTY?";
+
+  let open Type in
+  let rec collect_cases new_decls new_cases tctx = function
+    | [] -> begin
+      let< ((), tctx) = unify_ctx { tctx with tvenv = [] } in
+      let rec update_kinds tctx = function
+        | [] ->
+          (Ok (), { tctx with dctors = merge_map tctx.dctors new_cases })
+        | (n, _, _) :: xs ->
+          let (t, k) = StrMap.find n tctx.tctors in
+          let (k, subst) = expand tctx.subst k in
+          let (qs, k) = gen V.Set.empty k in
+          let k = List.fold_right (fun q k -> TQuant (q, k)) qs k in
+          let tctors = StrMap.add n (t, k) tctx.tctors in
+          update_kinds { tctx with tctors; subst } xs in
+      update_kinds tctx dats
+    end
+    | (n, _, cases) :: xs ->
+      let (variant, tvenv) = StrMap.find n new_decls in
+      let rec loop new_cases tctx = function
+        | [] -> collect_cases new_decls new_cases tctx xs
+        | (k, args) :: xs ->
+          let rec inner acc tctx = function
+            | [] -> begin
+              if Hashtbl.mem variant.cases k then
+                (Error ["duplicate data constructor " ^ k], tctx)
+              else begin
+                Hashtbl.add variant.cases k (List.rev acc);
+                loop (StrMap.add k variant new_cases) tctx xs
+              end
+            end
+            | x :: xs ->
+              let< ((t, k, _), tctx) = visit_ast_type false None tctx x in
+              let rules = (k, TKind) :: tctx.rules in
+              inner (t :: acc) { tctx with rules } xs in
+          inner [] tctx args in
+      loop new_cases { tctx with tvenv = [tvenv] } cases in
+
+  let rec collect_names new_decls tctx = function
+    | [] -> collect_cases new_decls StrMap.empty tctx dats
+    | (n, args, _) :: xs ->
+      let< ((tvenv, args), tctx) = collect_decl_tvs tctx args in
+      let variant : Type.variant = {
+        name = n;
+        quants = List.map fst args;
+        cases = Hashtbl.create 16;
+      } in
+      let updatef = function
+        | None -> Some (variant, tvenv)
+        | t -> t in
+      let next = StrMap.update n updatef new_decls in
+      if next == new_decls then (Error ["duplicate data definition " ^ n], tctx)
+      else begin
+        let foldf (_, qk) k = TArr (qk, k) in
+        let kind = List.fold_right foldf args TKind in
+        let entry = (TCons (TCtorVar variant, []), kind) in
+        let tctors = StrMap.add n entry tctx.tctors in
+        collect_names next { tctx with tctors } xs
+      end in
+
+  match collect_names StrMap.empty tctx dats with
+    | (Error e, _) -> Error e
+    | (Ok (), tctx) -> Ok tctx
+
 let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
   match ast with
     | Ast.TopAlias aliases ->
@@ -787,12 +852,13 @@ let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
       visit_top_defs tctx defs
     | Ast.TopExtern defs ->
       visit_top_externs tctx defs
+    | Ast.TopData defs ->
+      visit_top_data tctx defs
     | Ast.TopExpr e -> begin
       match visit_top_expr tctx e with
         | Error e -> Error e
         | Ok (_, _, tctx) -> Ok tctx
     end
-    | _ -> Error ["NOT IMPLEMENTED YET"]
 
 let visit_prog (tctx : tctx) (ast : Ast.ast_toplevel list) =
   let rec loop tctx = function

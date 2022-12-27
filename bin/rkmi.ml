@@ -66,6 +66,10 @@ let rec loop tctx =
                     let (ast, _) = Expr.expand_type tctx.subst ast in
                     printf "%a\n: %a\n" Expr.output ast Type.output t in
             loop tctx
+          | ":tctors" ->
+            let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
+            StrMap.iter iterf tctx.tctors;
+            loop tctx
           | _ ->
             printf "unknown command '%s'\n" cmd;
             loop tctx
