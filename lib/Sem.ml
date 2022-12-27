@@ -392,67 +392,136 @@ let organize_vdefs (vdefs : Ast.ast_vdef list) =
     end in
   collect StrMap.empty vdefs
 
-let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
+let rec visit_cases sty ety tctx cases =
+  let rec loop acc tctx = function
+    | [] -> (Ok (List.rev acc), tctx)
+    | (p, e) :: xs ->
+      let< ((p, new_ids, new_tvs), tctx) = visit_pat sty StrMap.empty tctx p in
+      let tctx = { tctx with
+        idenv = new_ids :: tctx.idenv;
+        tvenv = new_tvs :: tctx.tvenv } in
+      let (e, tctx) = visit_expr ety tctx e in
+      let tctx = { tctx with
+        idenv = List.tl tctx.idenv;
+        tvenv = List.tl tctx.tvenv } in
+      let< (e, tctx) = (e, tctx) in
+      loop ((p, e) :: acc) tctx xs in
+  loop [] tctx cases
+
+and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list) =
+  let sty = Type.TVar ("", tctx.id)
+  and tctx = { tctx with id = Int64.succ tctx.id } in
+  let ety = Type.TVar ("", tctx.id)
+  and tctx = { tctx with id = Int64.succ tctx.id } in
+
+  (*
+   * ordinary lambdas  | lambda cases  | generalized lambdas
+   * \p11 p12... -> e1 | \p11 -> e1    | \p11 p12... -> e1
+   *                   |  p21 -> e2... |  p21 p22... -> e2...
+   *
+   * the idea is to view generalized lambdas as this:
+   * \x1 x2... -> match x1, x2, ... with p11, p12, ... -> e1
+   *                                     p21, p22, ... -> e2...
+   *)
+
+  let proj_pack (ps, e) = (Ast.Detup ps, e) in
+  let proj_unpack = function
+    | (Ast.Detup ps, e) -> (ps, e)
+    | _ -> failwith "IMPOSSIBLE GENERALIZE LAM PATTERN CASE" in
+
+  let mat = List.map proj_pack mat in
+  let< (mat, tctx) = visit_cases sty ety tctx mat in
+  let< ((), tctx) = unify_ctx tctx in
+  match Type.expand tctx.subst sty with
+    | (Type.TTup xs, subst) -> begin
+      let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
+      let rules = (ty, t) :: tctx.rules in
+      let tctx = { tctx with rules; subst } in
+
+      let foldf (id, acc) ty =
+        let tmp = (("", id), ty) in
+        (Int64.succ id, (tmp, ty) :: acc) in
+      let (id, acc) = List.fold_left foldf (0L, []) xs in
+
+      let inputs = List.rev_map (fun (v, ty) -> (Expr.EVar v, ty)) acc in
+      let mat = List.map proj_unpack mat in
+      let e = ConvCase.conv id inputs mat in
+      (Ok (List.fold_left (fun e (v, _) -> Expr.ELam (v, e)) e acc), tctx)
+    end
+    | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
+
+and visit_vdefs (recur : bool) (tctx : tctx) (vb : Ast.ast_vdef list) =
+  let rec proc_exprs new_ids ds acc tctx = function
+    | [] ->
+      let rec validate acc = function
+        | [] -> (Ok (new_ids, acc), tctx)
+        | (_, i) as x :: xs ->
+          if not recur || Expr.is_valid_rec ds i then validate (x :: acc) xs
+          else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
+      validate [] acc
+    | (n, None, defs) :: xs -> begin
+      let bty = StrMap.find n new_ids in
+      let< (e, tctx) = visit_generalized_lam bty tctx defs in
+      let n = (n, 0L) in
+      proc_exprs new_ids (V.Set.add n ds) (((n, bty), e) :: acc) tctx xs
+    end
+    | (n, Some _, defs) :: xs -> begin
+      let infty = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id } in
+      let< (e, tctx) = visit_generalized_lam infty tctx defs in
+
+      (* generalize the inferred type *)
+      let< ((), tctx) = unify_ctx tctx in
+      let (monos, tctx) = free_ctx tctx in
+      let (infty, subst) = Type.expand tctx.subst infty in
+      let tctx = { tctx with subst } in
+      let (infty, tctx) =
+        if Expr.is_syntactic_value e then begin
+          let (infty, subst) = Type.expand tctx.subst infty in
+          let tctx = { tctx with subst } in
+          let (qs, infty) = Type.gen monos infty in
+          (List.fold_right (fun q t -> Type.TQuant (q, t)) qs infty, tctx)
+        end else (infty, tctx) in
+
+      let qt = StrMap.find n new_ids in
+      if Type.is_general_enough infty qt then
+        (* then we register the annotated type *)
+        let n = (n, 0L) in
+        proc_exprs new_ids (V.Set.add n ds) (((n, qt), e) :: acc) tctx xs
+      else
+        (Error ["initializer is not general enough"], tctx)
+    end in
+
+  match organize_vdefs vb with
+    | Error e -> (Error e, tctx)
+    | Ok vb ->
+      let rec fill_scope new_ids tctx = function
+        | [] ->
+          if recur then
+            let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
+            let (q, tctx) = proc_exprs new_ids V.Set.empty [] tctx vb in
+            let tctx = { tctx with idenv = List.tl tctx.idenv } in
+            (q, tctx)
+          else proc_exprs new_ids V.Set.empty [] tctx vb
+        | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
+        | (n, None, _) :: xs ->
+          let bty = Type.TVar ("", tctx.id)
+          and tctx = { tctx with id = Int64.succ tctx.id } in
+          fill_scope (StrMap.add n bty new_ids) tctx xs
+        | (n, Some annot, _) :: xs ->
+          let< ((bty, kind, _), tctx) = visit_ast_type true (Some StrMap.empty) tctx annot in
+          let rules = (kind, Type.TKind) :: tctx.rules in
+          let< ((), tctx) = unify_ctx { tctx with rules } in
+          let (monos, tctx) = free_ctx tctx in
+
+          let (quants, bty) = Type.gen monos bty in
+          let qt = List.fold_right (fun q t -> Type.TQuant (q, t)) quants bty in
+          fill_scope (StrMap.add n qt new_ids) tctx xs in
+    fill_scope StrMap.empty tctx vb
+
+and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
   let open Expr in
-  let rec visit_cases sty ety tctx cases =
-    let rec loop acc tctx = function
-      | [] -> (Ok (List.rev acc), tctx)
-      | (p, e) :: xs ->
-        let< ((p, new_ids, new_tvs), tctx) = visit_pat sty StrMap.empty tctx p in
-        let tctx = { tctx with
-          idenv = new_ids :: tctx.idenv;
-          tvenv = new_tvs :: tctx.tvenv } in
-        let (e, tctx) = visit ety tctx e in
-        let tctx = { tctx with
-          idenv = List.tl tctx.idenv;
-          tvenv = List.tl tctx.tvenv } in
-        let< (e, tctx) = (e, tctx) in
-        loop ((p, e) :: acc) tctx xs in
-    loop [] tctx cases
-
-  and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list) =
-    let sty = Type.TVar ("", tctx.id)
-    and tctx = { tctx with id = Int64.succ tctx.id } in
-    let ety = Type.TVar ("", tctx.id)
-    and tctx = { tctx with id = Int64.succ tctx.id } in
-
-    (*
-     * ordinary lambdas  | lambda cases  | generalized lambdas
-     * \p11 p12... -> e1 | \p11 -> e1    | \p11 p12... -> e1
-     *                   |  p21 -> e2... |  p21 p22... -> e2...
-     *
-     * the idea is to view generalized lambdas as this:
-     * \x1 x2... -> match x1, x2, ... with p11, p12, ... -> e1
-     *                                     p21, p22, ... -> e2...
-     *)
-
-    let proj_pack (ps, e) = (Ast.Detup ps, e) in
-    let proj_unpack = function
-      | (Ast.Detup ps, e) -> (ps, e)
-      | _ -> failwith "IMPOSSIBLE GENERALIZE LAM PATTERN CASE" in
-
-    let mat = List.map proj_pack mat in
-    let< (mat, tctx) = visit_cases sty ety tctx mat in
-    let< ((), tctx) = unify_ctx tctx in
-    match Type.expand tctx.subst sty with
-      | (Type.TTup xs, subst) -> begin
-        let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
-        let rules = (ty, t) :: tctx.rules in
-        let tctx = { tctx with rules; subst } in
-
-        let foldf (id, acc) ty =
-          let tmp = (("", id), ty) in
-          (Int64.succ id, (tmp, ty) :: acc) in
-        let (id, acc) = List.fold_left foldf (0L, []) xs in
-
-        let inputs = List.rev_map (fun (v, ty) -> (EVar v, ty)) acc in
-        let mat = List.map proj_unpack mat in
-        let e = ConvCase.conv id inputs mat in
-        (Ok (List.fold_left (fun e (v, _) -> ELam (v, e)) e acc), tctx)
-      end
-      | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
-
-  and lookup_var n ty tctx errf =
+  let rec lookup_var n ty tctx errf =
     match lookup_env n tctx.idenv with
       | None -> (Error [errf ()], tctx)
       | Some vty ->
@@ -593,129 +662,27 @@ let visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | _ -> (Error (merge_errors [op; p; q]), tctx)
     end
     | Ast.Let (vb, e) -> begin
-      match organize_vdefs vb with
+      let< ((new_ids, acc), tctx) = visit_vdefs false tctx vb in
+      let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
+      let (e, tctx) = visit ty tctx e in
+      let tctx = { tctx with idenv = List.tl tctx.idenv } in
+      match e with
         | Error e -> (Error e, tctx)
-        | Ok vb ->
-          let rec loop new_ids acc tctx = function
-            | [] -> begin
-              let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-              let (e, tctx) = visit ty tctx e in
-              let tctx = { tctx with idenv = List.tl tctx.idenv } in
-              let< (e, tctx) = (e, tctx) in
-
-              (* rewrite it into a series of single nonrec lets *)
-              let e = List.fold_left (fun e (n, ty, _) -> ELet (NonRec (((n, 0L), ty), EVar ((n, 1L), ty)), e)) e acc in
-              let e = List.fold_left (fun e (n, ty, i) -> ELet (NonRec (((n, 1L), ty), i), e)) e acc in
-              (Ok e, tctx)
-            end
-            | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
-            | (n, None, defs) :: xs -> begin
-              let infty = Type.TVar ("", tctx.id)
-              and tctx = { tctx with id = Int64.succ tctx.id } in
-              let< (e, tctx) = visit_generalized_lam infty tctx defs in
-              loop (StrMap.add n infty new_ids) ((n, infty, e) :: acc) tctx xs
-            end
-            | (n, Some annot, defs) :: xs -> begin
-              let infty = Type.TVar ("", tctx.id)
-              and tctx = { tctx with id = Int64.succ tctx.id } in
-              let< (e, tctx) = visit_generalized_lam infty tctx defs in
-
-              let< ((bty, kind, _), tctx) =
-                visit_ast_type true (Some StrMap.empty) tctx annot in
-              let rules = (kind, Type.TKind) :: tctx.rules in
-              let< ((), tctx) = unify_ctx { tctx with rules } in
-              let (monos, tctx) = free_ctx tctx in
-
-              (* generalize the inferred type *)
-              let (infty, subst) = Type.expand tctx.subst infty in
-              let tctx = { tctx with subst } in
-              let (infty, tctx) =
-                if Expr.is_syntactic_value e then begin
-                  let (infty, subst) = Type.expand tctx.subst infty in
-                  let tctx = { tctx with subst } in
-                  let (qs, infty) = Type.gen monos infty in
-                  (List.fold_right (fun q t -> Type.TQuant (q, t)) qs infty, tctx)
-                end else (infty, tctx) in
-
-              (* generalize the annotated type *)
-              let (quants, bty) = Type.gen monos bty in
-              let qt = List.fold_right (fun q t -> Type.TQuant (q, t)) quants bty in
-
-              if Type.is_general_enough infty qt then
-                (* then we register the annotated type *)
-                loop (StrMap.add n qt new_ids) ((n, qt, e) :: acc) tctx xs
-              else
-                (Error ["initializer is not general enough"], tctx)
-            end in
-          loop StrMap.empty [] tctx vb
+        | Ok e ->
+          (* rewrite it into a series of single nonrec lets *)
+          let acc = List.rev_map (fun (((n, _), ty), i) -> (n, ty, i)) acc in
+          let e = List.fold_left (fun e (n, ty, _) -> ELet (NonRec (((n, 0L), ty), EVar ((n, 1L), ty)), e)) e acc in
+          let e = List.fold_left (fun e (n, ty, i) -> ELet (NonRec (((n, 1L), ty), i), e)) e acc in
+          (Ok e, tctx)
     end
     | Ast.LetRec (vb, e) -> begin
-      match organize_vdefs vb with
+      let< ((new_ids, acc), tctx) = visit_vdefs true tctx vb in
+      let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
+      let (e, tctx) = visit ty tctx e in
+      let tctx = { tctx with idenv = List.tl tctx.idenv } in
+      match e with
         | Error e -> (Error e, tctx)
-        | Ok vb ->
-          let rec proc_exprs new_ids ds acc tctx = function
-            | [] ->
-              let< (e, tctx) = visit ty tctx e in
-              let rec validate acc = function
-                | [] -> (Ok (ELet (Rec acc, e)), tctx)
-                | (_, i) as x :: xs ->
-                  if is_valid_rec ds i then validate (x :: acc) xs
-                  else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
-              validate [] acc
-            | (n, None, defs) :: xs -> begin
-              let bty = StrMap.find n new_ids in
-              let< (e, tctx) = visit_generalized_lam bty tctx defs in
-              let n = (n, 0L) in
-              proc_exprs new_ids (V.Set.add n ds) (((n, bty), e) :: acc) tctx xs
-            end
-            | (n, Some _, defs) :: xs -> begin
-              let infty = Type.TVar ("", tctx.id)
-              and tctx = { tctx with id = Int64.succ tctx.id } in
-              let< (e, tctx) = visit_generalized_lam infty tctx defs in
-
-              (* generalize the inferred type *)
-              let< ((), tctx) = unify_ctx tctx in
-              let (monos, tctx) = free_ctx tctx in
-              let (infty, subst) = Type.expand tctx.subst infty in
-              let tctx = { tctx with subst } in
-              let (infty, tctx) =
-                if Expr.is_syntactic_value e then begin
-                  let (infty, subst) = Type.expand tctx.subst infty in
-                  let tctx = { tctx with subst } in
-                  let (qs, infty) = Type.gen monos infty in
-                  (List.fold_right (fun q t -> Type.TQuant (q, t)) qs infty, tctx)
-                end else (infty, tctx) in
-
-              let qt = StrMap.find n new_ids in
-              if Type.is_general_enough infty qt then
-                (* then we register the annotated type *)
-                let n = (n, 0L) in
-                proc_exprs new_ids (V.Set.add n ds) (((n, qt), e) :: acc) tctx xs
-              else
-                (Error ["initializer is not general enough"], tctx)
-            end in
-
-          let rec fill_scope new_ids tctx = function
-            | [] ->
-              let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-              let (e, tctx) = proc_exprs new_ids V.Set.empty [] tctx vb in
-              let tctx = { tctx with idenv = List.tl tctx.idenv } in
-              (e, tctx)
-            | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
-            | (n, None, _) :: xs ->
-              let bty = Type.TVar ("", tctx.id)
-              and tctx = { tctx with id = Int64.succ tctx.id } in
-              fill_scope (StrMap.add n bty new_ids) tctx xs
-            | (n, Some annot, _) :: xs ->
-              let< ((bty, kind, _), tctx) = visit_ast_type true (Some StrMap.empty) tctx annot in
-              let rules = (kind, Type.TKind) :: tctx.rules in
-              let< ((), tctx) = unify_ctx { tctx with rules } in
-              let (monos, tctx) = free_ctx tctx in
-
-              let (quants, bty) = Type.gen monos bty in
-              let qt = List.fold_right (fun q t -> Type.TQuant (q, t)) quants bty in
-              fill_scope (StrMap.add n qt new_ids) tctx xs in
-          fill_scope StrMap.empty tctx vb
+        | Ok e -> (Ok (ELet (Rec acc, e)), tctx)
     end
     | Ast.Case (s, cases) -> begin
       let sty = Type.TVar ("", tctx.id)
@@ -760,6 +727,12 @@ let visit_top_expr (tctx : tctx) (ast : Ast.ast_expr) =
           let (resty, subst) = Type.expand tctx.subst resty in
           Ok (ast, resty, { tctx with subst })
 
+let visit_top_defs (tctx : tctx) (vb : Ast.ast_vdef list) =
+  let (defs, tctx) = visit_vdefs true tctx vb in
+  match defs with
+    | Error e -> Error e
+    | Ok (new_ids, _) -> Ok ({ tctx with idenv = new_ids :: tctx.idenv })
+
 let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
   match ast with
     | Ast.TopAlias aliases ->
@@ -782,6 +755,8 @@ let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
               else
                 loop tctx next errors xs in
       loop tctx StrMap.empty [] aliases
+    | Ast.TopDef defs ->
+      visit_top_defs tctx defs
     | Ast.TopExpr e -> begin
       match visit_top_expr tctx e with
         | Error e -> Error e

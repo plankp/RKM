@@ -9,7 +9,7 @@ In this case, a is not in the enclosing scope, and therefore, we generalize
   $ GenExpr << "EOF"
   > \x -> let id : a -> a; id x = x in (id 'v', id "v")
   > EOF
-  \($0 : $3) -> let (x : $3) = ($0 : $3) in let (id$1 : (\a$8. a$8 -> a$8)) = \($0 : $7) -> let (x : $7) = ($0 : $7) in (x : $7) in let (id : (\a$8. a$8 -> a$8)) = (id$1 : (\a$8. a$8 -> a$8)) in ((id : (\a$8. a$8 -> a$8)) (@Char) '\u0076', (id : (\a$8. a$8 -> a$8)) (@String) "v")
+  \($0 : $3) -> let (x : $3) = ($0 : $3) in let (id$1 : (\a$4. a$4 -> a$4)) = \($0 : $10) -> let (x : $10) = ($0 : $10) in (x : $10) in let (id : (\a$4. a$4 -> a$4)) = (id$1 : (\a$4. a$4 -> a$4)) in ((id : (\a$4. a$4 -> a$4)) (@Char) '\u0076', (id : (\a$4. a$4 -> a$4)) (@String) "v")
   : $3 -> (Char, String)
 
 As a consequence, bindings do not introduce new type variables, meaning the
@@ -43,7 +43,7 @@ enough
   $ GenExpr << "EOF"
   > let p2 : a -> b -> (a, b); p2 x y = (x, y) in p2
   > EOF
-  let (p2$1 : (\a$8. (\b$10. a$8 -> b$10 -> (a$8, b$10)))) = \($0 : $6) -> \($1 : $7) -> let (y : $7) = ($1 : $7) in let (x : $6) = ($0 : $6) in ((x : $6), (y : $7)) in let (p2 : (\a$8. (\b$10. a$8 -> b$10 -> (a$8, b$10)))) = (p2$1 : (\a$8. (\b$10. a$8 -> b$10 -> (a$8, b$10)))) in (p2 : (\a$8. (\b$10. a$8 -> b$10 -> (a$8, b$10)))) (@$14) (@$15)
+  let (p2$1 : (\a$1. (\b$3. a$1 -> b$3 -> (a$1, b$3)))) = \($0 : $12) -> \($1 : $13) -> let (y : $13) = ($1 : $13) in let (x : $12) = ($0 : $12) in ((x : $12), (y : $13)) in let (p2 : (\a$1. (\b$3. a$1 -> b$3 -> (a$1, b$3)))) = (p2$1 : (\a$1. (\b$3. a$1 -> b$3 -> (a$1, b$3)))) in (p2 : (\a$1. (\b$3. a$1 -> b$3 -> (a$1, b$3)))) (@$14) (@$15)
   : $14 -> $15 -> ($14, $15)
 
   $ GenExpr << "EOF"
@@ -56,7 +56,7 @@ more general)
   $ GenExpr << "EOF"
   > let p2 : a -> a -> (a, a); p2 x y = (x, y) in p2
   > EOF
-  let (p2$1 : (\a$8. a$8 -> a$8 -> (a$8, a$8))) = \($0 : $6) -> \($1 : $7) -> let (y : $7) = ($1 : $7) in let (x : $6) = ($0 : $6) in ((x : $6), (y : $7)) in let (p2 : (\a$8. a$8 -> a$8 -> (a$8, a$8))) = (p2$1 : (\a$8. a$8 -> a$8 -> (a$8, a$8))) in (p2 : (\a$8. a$8 -> a$8 -> (a$8, a$8))) (@$13)
+  let (p2$1 : (\a$1. a$1 -> a$1 -> (a$1, a$1))) = \($0 : $11) -> \($1 : $12) -> let (y : $12) = ($1 : $12) in let (x : $11) = ($0 : $11) in ((x : $11), (y : $12)) in let (p2 : (\a$1. a$1 -> a$1 -> (a$1, a$1))) = (p2$1 : (\a$1. a$1 -> a$1 -> (a$1, a$1))) in (p2 : (\a$1. a$1 -> a$1 -> (a$1, a$1))) (@$13)
   : $13 -> $13 -> ($13, $13)
 
 Underscores do work, essentially they always generalize (but they're not that
@@ -64,7 +64,7 @@ useful because you can refer to them)
   $ GenExpr << "EOF"
   > let ignore : _ -> (); ignore _ = () in (ignore 'v', ignore "v")
   > EOF
-  let (ignore$1 : (\_$5. _$5 -> ())) = \($0 : $4) -> () in let (ignore : (\_$5. _$5 -> ())) = (ignore$1 : (\_$5. _$5 -> ())) in ((ignore : (\_$5. _$5 -> ())) (@Char) '\u0076', (ignore : (\_$5. _$5 -> ())) (@String) "v")
+  let (ignore$1 : (\_$1. _$1 -> ())) = \($0 : $7) -> () in let (ignore : (\_$1. _$1 -> ())) = (ignore$1 : (\_$1. _$1 -> ())) in ((ignore : (\_$1. _$1 -> ())) (@Char) '\u0076', (ignore : (\_$1. _$1 -> ())) (@String) "v")
   : ((), ())
 
 Another slight annoyance is "value restriction" which means not all things are
@@ -89,7 +89,7 @@ The common cited workaround is to use eta-expansion
   >     id x = (\x -> x) (\x -> x) x
   > in (id 'v', id "v")
   > EOF
-  let (id$1 : (\a$13. a$13 -> a$13)) = \($0 : $12) -> let (x : $12) = ($0 : $12) in (\($0 : $12 -> $12) -> let (x : $12 -> $12) = ($0 : $12 -> $12) in (x : $12 -> $12)) (\($0 : $12) -> let (x : $12) = ($0 : $12) in (x : $12)) (x : $12) in let (id : (\a$13. a$13 -> a$13)) = (id$1 : (\a$13. a$13 -> a$13)) in ((id : (\a$13. a$13 -> a$13)) (@Char) '\u0076', (id : (\a$13. a$13 -> a$13)) (@String) "v")
+  let (id$1 : (\a$1. a$1 -> a$1)) = \($0 : $15) -> let (x : $15) = ($0 : $15) in (\($0 : $15 -> $15) -> let (x : $15 -> $15) = ($0 : $15 -> $15) in (x : $15 -> $15)) (\($0 : $15) -> let (x : $15) = ($0 : $15) in (x : $15)) (x : $15) in let (id : (\a$1. a$1 -> a$1)) = (id$1 : (\a$1. a$1 -> a$1)) in ((id : (\a$1. a$1 -> a$1)) (@Char) '\u0076', (id : (\a$1. a$1 -> a$1)) (@String) "v")
   : (Char, String)
 
 Also must examine the polymorphic recursion case. This should not type check.
