@@ -12,6 +12,6 @@ let () =
     | Ok (acc, _) ->
       match visit_prog core_tctx acc with
         | Error e -> List.iter (printf "Error: %s\n") e
-        | Ok tctx ->
+        | Ok (_, tctx) ->
           let iterf n (t, k) = printf "%s = %a : %a\n" n Type.output t Type.output k in
           StrMap.iter iterf tctx.tctors

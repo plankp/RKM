@@ -70,6 +70,9 @@ let rec loop tctx =
             let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
             StrMap.iter iterf tctx.tctors;
             loop tctx
+          | ":reset" ->
+            printf "Environment resetted\n";
+            loop core_tctx
           | _ ->
             printf "unknown command '%s'\n" cmd;
             loop tctx
@@ -85,8 +88,21 @@ let rec loop tctx =
               | Error e ->
                 List.iter (printf "Error: %s\n") e;
                 tctx
-              | Ok tctx ->
-                tctx in
+              | Ok (seq, tctx) ->
+                let proc_toplevel = function
+                  | AddTypes m ->
+                    let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
+                    StrMap.iter iterf m
+                  | AddGlobl m -> ignore m
+                  | AddExtern m -> ignore m
+                  | EvalExpr (e, t) ->
+                    printf "%a : %a\n" Expr.output e Type.output t in
+                let rec loop = function
+                  | [] -> tctx
+                  | x :: xs ->
+                    proc_toplevel x;
+                    loop xs in
+                loop seq in
         loop tctx
       end
 

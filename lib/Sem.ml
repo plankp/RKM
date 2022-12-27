@@ -13,6 +13,12 @@ type tctx = {
   subst : Type.t V.Map.t;
 }
 
+type toplevel_analysis =
+  | EvalExpr of Expr.expr * Type.t
+  | AddTypes of tkmap
+  | AddGlobl of (Expr.name * Expr.expr) list
+  | AddExtern of (Type.t * string) StrMap.t
+
 let map_of_list (list : (string * 'a) list) =
   list |> List.to_seq |> StrMap.of_seq
 
@@ -210,6 +216,26 @@ let visit_alias (tctx : tctx) ((n, args, t) : Ast.ast_alias) =
 
 let merge_map m overwrite =
   StrMap.fold StrMap.add overwrite m
+
+let visit_top_alias (tctx : tctx) (defs : Ast.ast_alias list) =
+  let rec loop map errors tctx = function
+    | [] ->
+      if errors = [] then
+        let tctors = merge_map tctx.tctors map in
+        Ok (map, { tctx with tctors })
+      else Error (List.rev errors)
+    | x :: xs ->
+      match visit_alias tctx x with
+        | Error e -> Error e
+        | Ok (n, t, k, tctx) ->
+          let updatef = function
+            | None -> Some (t, k)
+            | t -> t in
+          let next = StrMap.update n updatef map in
+          if next == map then
+            loop next (("duplicate type alias " ^ n) :: errors) tctx xs
+          else loop next errors tctx xs in
+  loop StrMap.empty [] tctx defs
 
 let gen_tuple_shape tctx elts =
   let rec loop acc tctx = function
@@ -733,24 +759,26 @@ let visit_top_expr (tctx : tctx) (ast : Ast.ast_expr) =
         | (Error e, _) -> Error e
         | (Ok (), tctx) ->
           let (resty, subst) = Type.expand tctx.subst resty in
+          let (ast, subst) = Expr.expand_type subst ast in
           Ok (ast, resty, { tctx with subst })
 
 let visit_top_defs (tctx : tctx) (vb : Ast.ast_vdef list) =
   let (defs, tctx) = visit_vdefs true tctx vb in
   match defs with
     | Error e -> Error e
-    | Ok (new_ids, _) -> Ok ({ tctx with idenv = new_ids :: tctx.idenv })
+    | Ok (new_ids, acc) ->
+      Ok (acc, { tctx with idenv = new_ids :: tctx.idenv })
 
 let visit_top_externs (tctx : tctx) (vb : Ast.ast_extern list) =
   let rec loop map tctx = function
     | [] ->
       let< ((), tctx) = unify_ctx tctx in
       (Ok map, tctx)
-    | (n, annot, _) :: xs ->
+    | (n, annot, extn) :: xs ->
       let< ((annot, kind, _), tctx) = visit_ast_type false None tctx annot in
       let tctx = { tctx with rules = (kind, Type.TKind) :: tctx.rules } in
       let updatef = function
-        | None -> Some annot
+        | None -> Some (annot, extn)
         | t -> t in
       let next = StrMap.update n updatef map in
       if next == map then (Error ["duplicate extern definition " ^ n], tctx)
@@ -759,7 +787,8 @@ let visit_top_externs (tctx : tctx) (vb : Ast.ast_extern list) =
   match loop StrMap.empty tctx vb with
     | (Error e, _) -> Error e
     | (Ok m, tctx) ->
-      Ok ({ tctx with idenv = m :: tctx.idenv })
+      let s = StrMap.map fst m in
+      Ok (m, { tctx with idenv = s :: tctx.idenv })
 
 let visit_top_data (tctx : tctx) (dats : Ast.ast_data list) =
   if tctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
@@ -769,17 +798,18 @@ let visit_top_data (tctx : tctx) (dats : Ast.ast_data list) =
   let rec collect_cases new_decls new_cases tctx = function
     | [] -> begin
       let< ((), tctx) = unify_ctx { tctx with tvenv = [] } in
-      let rec update_kinds tctx = function
+      let rec update_kinds new_types tctx = function
         | [] ->
-          (Ok (), { tctx with dctors = merge_map tctx.dctors new_cases })
+          (Ok new_types, { tctx with dctors = merge_map tctx.dctors new_cases })
         | (n, _, _) :: xs ->
           let (t, k) = StrMap.find n tctx.tctors in
           let (k, subst) = expand tctx.subst k in
           let (qs, k) = gen V.Set.empty k in
           let k = List.fold_right (fun q k -> TQuant (q, k)) qs k in
           let tctors = StrMap.add n (t, k) tctx.tctors in
-          update_kinds { tctx with tctors; subst } xs in
-      update_kinds tctx dats
+          let new_types = StrMap.add n (t, k) new_types in
+          update_kinds new_types { tctx with tctors; subst } xs in
+      update_kinds StrMap.empty tctx dats
     end
     | (n, _, cases) :: xs ->
       let (variant, tvenv) = StrMap.find n new_decls in
@@ -826,47 +856,41 @@ let visit_top_data (tctx : tctx) (dats : Ast.ast_data list) =
 
   match collect_names StrMap.empty tctx dats with
     | (Error e, _) -> Error e
-    | (Ok (), tctx) -> Ok tctx
+    | (Ok new_types, tctx) -> Ok (new_types, tctx)
 
 let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
   match ast with
-    | Ast.TopAlias aliases ->
-      let rec loop tctx map errors = function
-        | [] ->
-          if errors = [] then
-            let tctors = merge_map tctx.tctors map in
-            Ok { tctx with tctors }
-          else Error (List.rev errors)
-        | x :: xs ->
-          match visit_alias tctx x with
-            | Error e -> Error e
-            | Ok (n, t, k, tctx) ->
-              let updatef = function
-                | None -> Some (t, k)
-                | t -> t in
-              let next = StrMap.update n updatef map in
-              if next == map then
-                loop tctx next (("duplicate type alias " ^ n) :: errors) xs
-              else
-                loop tctx next errors xs in
-      loop tctx StrMap.empty [] aliases
-    | Ast.TopDef defs ->
-      visit_top_defs tctx defs
-    | Ast.TopExtern defs ->
-      visit_top_externs tctx defs
-    | Ast.TopData defs ->
-      visit_top_data tctx defs
+    | Ast.TopAlias aliases -> begin
+      match visit_top_alias tctx aliases with
+        | Error e -> Error e
+        | Ok (m, tctx) -> Ok (AddTypes m, tctx)
+    end
+    | Ast.TopDef defs -> begin
+      match visit_top_defs tctx defs with
+        | Error e -> Error e
+        | Ok (m, tctx) -> Ok (AddGlobl m, tctx)
+    end
+    | Ast.TopExtern defs -> begin
+      match visit_top_externs tctx defs with
+        | Error e -> Error e
+        | Ok (m, tctx) -> Ok (AddExtern m, tctx)
+    end
+    | Ast.TopData defs -> begin
+      match visit_top_data tctx defs with
+        | Error e -> Error e
+        | Ok (m, tctx) -> Ok (AddTypes m, tctx)
+    end
     | Ast.TopExpr e -> begin
       match visit_top_expr tctx e with
         | Error e -> Error e
-        | Ok (_, _, tctx) -> Ok tctx
+        | Ok (ast, ty, tctx) -> Ok (EvalExpr (ast, ty), tctx)
     end
 
 let visit_prog (tctx : tctx) (ast : Ast.ast_toplevel list) =
-  let rec loop tctx = function
-    | [] -> Ok tctx
+  let rec loop acc tctx = function
+    | [] -> Ok (List.rev acc, tctx)
     | x :: xs ->
       match visit_toplevel tctx x with
         | Error e -> Error e
-        | Ok tctx -> loop tctx xs in
-  loop tctx ast
+        | Ok (m, tctx) -> loop (m :: acc) tctx xs in
+  loop [] tctx ast
