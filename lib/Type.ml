@@ -22,7 +22,12 @@ and variant = {
   name : string;
   quants : V.t list;
 
-  (* stores implicitly quantized arguments as a list *)
+  (*
+   * only stores the arguments. e.g., for list
+   *        Surface type        | Stored as
+   * []   : \a. [a]             | []
+   * (::) : \a. a -> [a] -> [a] | [a, #list a]
+   *)
   cases : (string, t list) Hashtbl.t;
 }
 

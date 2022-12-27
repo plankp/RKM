@@ -27,6 +27,7 @@ let core_tctx : tctx = {
     "Int", (TInt, TKind);
     "Bool", (Type.tyBool, TKind);
   ] : (string * (Type.t * Type.t)) list);
+
   dctors = map_of_list [
     "True", Type.varBool;
     "False", Type.varBool;
@@ -165,42 +166,49 @@ let visit_ast_type (allow_ign : bool) (next : tkmap option) (tctx : tctx) (ast :
       else (Ok (ty, kind, next), tctx)
     | (Error e, _, tctx) -> (Error e, tctx)
 
-let visit_alias (tctx : tctx) (ast : Ast.ast_alias) =
-  let (n, args, t) = ast in
-  let rec tail tctx map acc errors = function
+let collect_decl_tvs (tctx : tctx) (tvargs : string list) =
+  let rec loop map acc errors tctx = function
     | [] ->
-      if errors = [] then begin
-        let old_env = tctx.tvenv in
-        let old_rules = tctx.rules in
-        match visit_ast_type false None { tctx with tvenv = [map]; rules = [] } t with
-          | (Error e, _) -> Error e
-          | (Ok (t, k, _), tctx) ->
-            let (subst, errors) = Type.unify V.Map.empty tctx.rules in
-            match errors with
-              | _ :: _ -> Error (List.map (Type.explain ~env:(Some subst)) errors)
-              | [] ->
-                let (k, subst) = Type.expand subst k in
-                let foldf (t, k, subst) (q, qk) =
-                  let (qk, subst) = Type.expand subst qk in
-                  (Type.TQuant (q, t), Type.TArr (qk, k), subst) in
-                let (t, k, _) = List.fold_left foldf (t, k, subst) acc in
-                let (quants, k) = Type.gen V.Set.empty k in
-                let k = List.fold_right (fun q k -> Type.TQuant (q, k)) quants k in
-                Ok (n, t, k, { tctx with tvenv = old_env; rules = old_rules })
-      end else Error (List.rev errors)
+      if errors = [] then (Ok (map, List.rev acc), tctx)
+      else (Error (List.rev errors), tctx)
     | x :: xs ->
       let name = (x, 0L) in
-      let kind = Type.TVar ("", tctx.id) in
-      let tctx = { tctx with id = Int64.succ tctx.id } in
+      let kind = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id } in
       let updatef = function
         | None -> Some (Type.TRigid name, kind)
         | t -> t in
       let next = StrMap.update x updatef map in
       if next == map then
-        tail tctx next acc (("duplicate type variable " ^ x) :: errors) xs
-      else
-        tail tctx next ((name, kind) :: acc) errors xs in
-  tail tctx StrMap.empty [] [] args
+        loop next acc (("duplicate type variable " ^ x) :: errors) tctx xs
+      else loop next ((name, kind) :: acc) errors tctx xs in
+  loop StrMap.empty [] [] tctx tvargs
+
+let visit_alias (tctx : tctx) ((n, args, t) : Ast.ast_alias) =
+  if tctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
+  if tctx.rules <> [] then failwith "RULES NOT EMPTY?";
+
+  match collect_decl_tvs tctx args with
+    | (Error e, _) -> Error e
+    | (Ok (map, args), tctx) ->
+      let open Type in
+      let tctx = { tctx with tvenv = [map] } in
+      match visit_ast_type false None tctx t with
+        | (Error e, _) -> Error e
+        | (Ok (t, k, _), tctx) ->
+          let (subst, errors) = unify V.Map.empty tctx.rules in
+          let tctx = { tctx with tvenv = []; rules = [] } in
+          match errors with
+            | _ :: _ -> Error (List.map (explain ~env:(Some subst)) errors)
+            | [] ->
+              let (k, subst) = expand subst k in
+              let foldf (q, qk) (t, k, subst) =
+                let (qk, subst) = expand subst qk in
+                (TQuant (q, t), TArr (qk, k), subst) in
+              let (t, k, _) = List.fold_right foldf args (t, k, subst) in
+              let (qs, k) = Type.gen V.Set.empty k in
+              let k = List.fold_right (fun q k -> Type.TQuant (q, k)) qs k in
+              Ok (n, t, k, tctx)
 
 let merge_map m overwrite =
   StrMap.fold StrMap.add overwrite m

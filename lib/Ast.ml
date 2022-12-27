@@ -5,7 +5,7 @@ type ast_toplevel =
   | TopDef of ast_vdef list
   | TopExtern of ast_extern list
   | TopAlias of ast_alias list
-  | TopData of (string * string list * (string * ast_typ list) list) list
+  | TopData of ast_data list
 
 and ast_expr =
   | Var of string
@@ -49,6 +49,9 @@ and ast_extern =
 
 and ast_alias =
   string * string list * ast_typ
+
+and ast_data =
+  string * string list * (string * ast_typ list) list
 
 and ast_lit =
   | LitInt of Z.t
