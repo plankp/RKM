@@ -23,7 +23,58 @@ let read_input () =
     loop 1
   with End_of_file -> None
 
-let rec loop tctx =
+let rec lookup_extf : string -> Eval.value option = function
+  | "int_add#" -> Some (gen_extf_ii_i Z.add)
+  | "int_sub#" -> Some (gen_extf_ii_i Z.sub)
+  | "int_mul#" -> Some (gen_extf_ii_i Z.mul)
+  | "int_div#" -> Some (gen_extf_ii_i Z.div)
+  | "int_rem#" -> Some (gen_extf_ii_i Z.rem)
+  | "int_and#" -> Some (gen_extf_ii_i Z.logand)
+  | "int_xor#" -> Some (gen_extf_ii_i Z.logxor)
+  | "int_or#" -> Some (gen_extf_ii_i Z.logor)
+  | _ -> None
+
+and gen_extf_ii_i f =
+  let open Eval in
+  VExtf (fun p -> Ok (VExtf (fun q ->
+    match (p, q) with
+      | (VLit (LitInt p), VLit (LitInt q)) -> Ok (VLit (LitInt (f p q)))
+      | _ -> Error "Type violation")))
+
+let proc_toplevel venv = function
+  | AddTypes m ->
+    let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
+    StrMap.iter iterf m;
+    Ok venv
+  | AddGlobl m -> begin
+    match Eval.add_rec_def venv m with
+      | Error e -> Error e
+      | Ok venv ->
+        printf "(done)\n";
+        Ok venv
+  end
+  | AddExtern m -> begin
+    let rec loop next_venv seq =
+      match seq () with
+        | Seq.Nil ->
+          printf "(done)\n";
+          Ok next_venv
+        | Seq.Cons ((k, (t, n)), xs) ->
+          match lookup_extf n with
+            | None -> Error ("unknown external function " ^ n)
+            | Some v ->
+              loop (Eval.augment_env next_venv ((k, 0L), t) v) xs in
+    loop venv (StrMap.to_seq m)
+  end
+  | EvalExpr (e, t) -> begin
+    match Eval.eval venv e with
+      | Error e -> Error e
+      | Ok v ->
+        printf "%a : %a\n" Eval.output v Type.output t;
+        Ok venv
+  end
+
+let rec repl_loop tctx venv =
   match read_input () with
     | None -> ()
     | Some (lines, _) ->
@@ -50,7 +101,7 @@ let rec loop tctx =
                     List.iter (printf "Error: %s\n") e
                   | Ok (_, t, k, _) ->
                     printf "%a : %a\n" Type.output t Type.output k in
-            loop tctx
+            repl_loop tctx venv
           | ":t" | ":type" ->
             let lexbuf = Lexing.from_string lines in
             let result = parse (Parser.expr ~-1) lexbuf in
@@ -65,46 +116,39 @@ let rec loop tctx =
                   | Ok (ast, t, tctx) ->
                     let (ast, _) = Expr.expand_type tctx.subst ast in
                     printf "%a\n: %a\n" Expr.output ast Type.output t in
-            loop tctx
+            repl_loop tctx venv
           | ":tctors" ->
             let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
             StrMap.iter iterf tctx.tctors;
-            loop tctx
+            repl_loop tctx venv
           | ":reset" ->
             printf "Environment resetted\n";
-            loop core_tctx
+            repl_loop core_tctx Eval.core_venv
           | _ ->
             printf "unknown command '%s'\n" cmd;
-            loop tctx
-      else begin
+            repl_loop tctx venv
+      else
         let lexbuf = Lexing.from_string lines in
         let result = parse Parser.prog lexbuf in
-        let tctx = match result with
+        match result with
           | Error (p, e) ->
             printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e;
-            tctx
+            repl_loop tctx venv
           | Ok (acc, _) ->
             match visit_prog tctx acc with
               | Error e ->
                 List.iter (printf "Error: %s\n") e;
-                tctx
+                repl_loop tctx venv
               | Ok (seq, tctx) ->
-                let proc_toplevel = function
-                  | AddTypes m ->
-                    let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
-                    StrMap.iter iterf m
-                  | AddGlobl m -> ignore m
-                  | AddExtern m -> ignore m
-                  | EvalExpr (e, t) ->
-                    printf "%a : %a\n" Expr.output e Type.output t in
-                let rec loop = function
-                  | [] -> tctx
+                let rec loop venv = function
+                  | [] -> repl_loop tctx venv
                   | x :: xs ->
-                    proc_toplevel x;
-                    loop xs in
-                loop seq in
-        loop tctx
-      end
+                    match proc_toplevel venv x with
+                      | Ok venv -> loop venv xs
+                      | Error e ->
+                        printf "Error: %s\nEnvironment resetted\n" e;
+                        repl_loop core_tctx Eval.core_venv in
+                loop venv seq
 
 let () =
-  loop core_tctx
+  repl_loop core_tctx Eval.core_venv
