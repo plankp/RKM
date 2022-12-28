@@ -33,7 +33,6 @@ def tail = \match
   Nil -> Nil
 
 def map : (a -> b) -> MyList a -> MyList b
-    map f = \match
-      Nil -> Nil
-      Cons x xs -> Cons (f x) (map f xs)
+    map f (Cons x xs) = Cons (f x) (map f xs)
+    map _ Nil = Nil
 ```
