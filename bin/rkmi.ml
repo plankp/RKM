@@ -41,23 +41,25 @@ and gen_extf_ii_i f =
       | (VLit (LitInt p), VLit (LitInt q)) -> Ok (VLit (LitInt (f p q)))
       | _ -> Error "Type violation")))
 
-let proc_toplevel venv = function
+let proc_toplevel verbose venv = function
   | AddTypes m ->
-    let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
-    StrMap.iter iterf m;
+    if verbose then begin
+      let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
+      StrMap.iter iterf m
+    end;
     Ok venv
   | AddGlobl m -> begin
     match Eval.add_rec_def venv m with
       | Error e -> Error e
       | Ok venv ->
-        printf "(done)\n";
+        if verbose then printf "(done)\n";
         Ok venv
   end
   | AddExtern m -> begin
     let rec loop next_venv seq =
       match seq () with
         | Seq.Nil ->
-          printf "(done)\n";
+          if verbose then printf "(done)\n";
           Ok next_venv
         | Seq.Cons ((k, (t, n)), xs) ->
           match lookup_extf n with
@@ -70,11 +72,31 @@ let proc_toplevel venv = function
     match Eval.eval venv e with
       | Error e -> Error e
       | Ok v ->
-        printf "%a : %a\n" Eval.output v Type.output t;
+        if verbose then printf "%a : %a\n" Eval.output v Type.output t;
         Ok venv
   end
 
-let rec repl_loop tctx venv =
+let rec cont_eval_prog verbose tctx venv = function
+  | Error (p, e) ->
+    printf "Error (%d, %d): %s\n" (p.Parser.lineno + 1) (p.Parser.colno + 1) e;
+    repl_loop tctx venv
+  | Ok (acc, _) ->
+    match visit_prog tctx acc with
+      | Error e ->
+        List.iter (printf "Error: %s\n") e;
+        repl_loop tctx venv
+      | Ok (seq, tctx) ->
+        let rec loop venv = function
+          | [] -> repl_loop tctx venv
+          | x :: xs ->
+            match proc_toplevel verbose venv x with
+              | Ok venv -> loop venv xs
+              | Error e ->
+                printf "Error: %s\nEnvironment resetted\n" e;
+                repl_loop core_tctx Eval.core_venv in
+        loop venv seq
+
+and repl_loop tctx venv =
   match read_input () with
     | None -> ()
     | Some (lines, _) ->
@@ -124,31 +146,28 @@ let rec repl_loop tctx venv =
           | ":reset" ->
             printf "Environment resetted\n";
             repl_loop core_tctx Eval.core_venv
+          | ":load" ->
+            begin
+              try
+                let chan = open_in_bin lines in
+                printf "loading file '%s'\n" lines;
+                try
+                  let lexbuf = Lexing.from_channel chan in
+                  let result = parse Parser.prog lexbuf in
+                  close_in chan;
+                  cont_eval_prog false tctx venv result
+                with _ -> close_in_noerr chan
+              with _ -> ()
+            end;
+            printf "cannot load file '%s'\n" lines;
+            repl_loop tctx venv
           | _ ->
             printf "unknown command '%s'\n" cmd;
             repl_loop tctx venv
       else
         let lexbuf = Lexing.from_string lines in
         let result = parse Parser.prog lexbuf in
-        match result with
-          | Error (p, e) ->
-            printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e;
-            repl_loop tctx venv
-          | Ok (acc, _) ->
-            match visit_prog tctx acc with
-              | Error e ->
-                List.iter (printf "Error: %s\n") e;
-                repl_loop tctx venv
-              | Ok (seq, tctx) ->
-                let rec loop venv = function
-                  | [] -> repl_loop tctx venv
-                  | x :: xs ->
-                    match proc_toplevel venv x with
-                      | Ok venv -> loop venv xs
-                      | Error e ->
-                        printf "Error: %s\nEnvironment resetted\n" e;
-                        repl_loop core_tctx Eval.core_venv in
-                loop venv seq
+        cont_eval_prog true tctx venv result
 
 let () =
   repl_loop core_tctx Eval.core_venv
