@@ -36,7 +36,8 @@ Without the annotation, it does the right thing (and not generalize)
   $ GenExpr << "EOF"
   > let id x = x in (id 'a', id "z")
   > EOF
-  Error: Cannot unify unrelated types Char and String
+  let (id$1 : (\$4. $4 -> $4)) = \($0 : $4) -> let (x : $4) = ($0 : $4) in (x : $4) in let (id : (\$4. $4 -> $4)) = (id$1 : (\$4. $4 -> $4)) in ((id : (\$4. $4 -> $4)) (@Char) '\u0061', (id : (\$4. $4 -> $4)) (@String) "z")
+  : (Char, String)
 
 As hinted by a previous test case, we make sure the initializers are general
 enough
@@ -91,6 +92,17 @@ The common cited workaround is to use eta-expansion
   > EOF
   let (id$1 : (\a$1. a$1 -> a$1)) = \($0 : $15) -> let (x : $15) = ($0 : $15) in (\($0 : $15 -> $15) -> let (x : $15 -> $15) = ($0 : $15 -> $15) in (x : $15 -> $15)) (\($0 : $15) -> let (x : $15) = ($0 : $15) in (x : $15)) (x : $15) in let (id : (\a$1. a$1 -> a$1)) = (id$1 : (\a$1. a$1 -> a$1)) in ((id : (\a$1. a$1 -> a$1)) (@Char) '\u0076', (id : (\a$1. a$1 -> a$1)) (@String) "v")
   : (Char, String)
+
+Test case for relaxed value restriction
+  $ GenExpr << "EOF"
+  > let snd : (a, b) -> b
+  >     snd (_, y) = y in
+  > let tst : [a]
+  >     tst = snd ("", []) in
+  > tst
+  > EOF
+  let (snd$1 : (\a$1. (\b$2. (a$1, b$2) -> b$2))) = \($0 : ($9, $10)) -> match ($0 : ($9, $10)) with { (($1 : $9), ($2 : $10)) -> let (y : $10) = ($2 : $10) in (y : $10); } in let (snd : (\a$1. (\b$2. (a$1, b$2) -> b$2))) = (snd$1 : (\a$1. (\b$2. (a$1, b$2) -> b$2))) in let (tst$1 : (\a$11. [a$11])) = (snd : (\a$1. (\b$2. (a$1, b$2) -> b$2))) (@String) (@[$21]) ("", ([] : [$21])) in let (tst : (\a$11. [a$11])) = (tst$1 : (\a$11. [a$11])) in (tst : (\a$11. [a$11])) (@$22)
+  : [$22]
 
 Also must examine the polymorphic recursion case. This should not type check.
   $ GenExpr << "EOF"

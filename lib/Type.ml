@@ -261,6 +261,22 @@ let free_vars ?(acc = V.Set.empty) t =
     | TQuant (_, t) :: xs -> loop acc (t :: xs) in
   loop acc [t]
 
+let dangerous_vars ?(acc = V.Set.empty) t =
+  let rec loop acc = function
+    | [] -> acc
+    | (TVar _ | TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop acc xs
+    | (TCons (TCtorVar k, _) as t) :: xs when k == varRef ->
+      loop (free_vars ~acc t) xs
+    | (TCons (TCtorVar k, ys)) :: xs when k == varList ->
+      loop acc (List.rev_append ys xs)
+    | TArr (p, q) :: xs -> loop (free_vars ~acc p) (q :: xs)
+    | TTup ys :: xs -> loop acc (List.rev_append ys xs)
+    | TQuant (_, t) :: xs -> loop acc (t :: xs)
+    | t :: xs ->
+      (* assume the worst for everything else *)
+      loop (free_vars ~acc t) xs in
+  loop acc [t]
+
 let rec shallow_subst env = function
   | TVar n -> begin
     match V.Map.find_opt n env with

@@ -485,46 +485,55 @@ and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list)
     | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
 
 and visit_vdefs (recur : bool) (tctx : tctx) (vb : Ast.ast_vdef list) =
-  let rec proc_exprs new_ids ds acc tctx = function
-    | [] ->
-      let rec validate acc = function
-        | [] -> (Ok (new_ids, acc), tctx)
-        | (_, i) as x :: xs ->
-          if not recur || Expr.is_valid_rec ds i then validate (x :: acc) xs
-          else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
-      validate [] acc
-    | (n, None, defs) :: xs -> begin
+  let rec eval_init new_ids ds acc tctx = function
+    | [] -> begin
+      let generalize monos tctx rbinds =
+        let rec loop new_ids acc tctx = function
+          | [] -> (Ok (new_ids, acc), tctx)
+          | (n, bty, has_annot, e) :: xs ->
+            if not recur || Expr.is_valid_rec ds e then begin
+              let (bty, subst) = Type.expand tctx.subst bty in
+              let tctx = { tctx with subst } in
+
+              let monos =
+                if Expr.is_syntactic_value e then monos
+                else Type.dangerous_vars ~acc:monos bty in
+              let (qs, bty) = Type.gen monos bty in
+              let bty = List.fold_right (fun q t -> Type.TQuant (q, t)) qs bty in
+
+              if has_annot then begin
+                let annot = StrMap.find n new_ids in
+                let (annot, subst) = Type.expand tctx.subst annot in
+                let tctx = { tctx with subst } in
+                if Type.is_general_enough bty annot then
+                  loop (StrMap.add n annot new_ids) ((((n, 0L), annot), e):: acc) tctx xs
+                else (Error ["initializer is not general enough"], tctx)
+              end else
+                loop (StrMap.add n bty new_ids) ((((n, 0L), bty), e) :: acc) tctx xs
+            end else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
+        loop new_ids [] tctx rbinds in
+
+      let< ((), tctx) = unify_ctx tctx in
+      if recur then begin
+        (* need to unshift the bindings when computing the ftv of the ctx *)
+        let tctx = { tctx with idenv = List.tl tctx.idenv } in
+        let (monos, tctx) = free_ctx tctx in
+        let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
+        generalize monos tctx acc
+      end else begin
+        let (monos, tctx) = free_ctx tctx in
+        generalize monos tctx acc
+      end
+    end
+    | (n, None, defs) :: xs ->
       let bty = StrMap.find n new_ids in
       let< (e, tctx) = visit_generalized_lam bty tctx defs in
-      let n = (n, 0L) in
-      proc_exprs new_ids (V.Set.add n ds) (((n, bty), e) :: acc) tctx xs
-    end
-    | (n, Some _, defs) :: xs -> begin
-      let infty = Type.TVar ("", tctx.id)
+      eval_init new_ids (V.Set.add (n, 0L) ds) ((n, bty, false, e) :: acc) tctx xs
+    | (n, Some _, defs) :: xs ->
+      let bty = Type.TVar ("", tctx.id)
       and tctx = { tctx with id = Int64.succ tctx.id } in
-      let< (e, tctx) = visit_generalized_lam infty tctx defs in
-
-      (* generalize the inferred type *)
-      let< ((), tctx) = unify_ctx tctx in
-      let (monos, tctx) = free_ctx tctx in
-      let (infty, subst) = Type.expand tctx.subst infty in
-      let tctx = { tctx with subst } in
-      let (infty, tctx) =
-        if Expr.is_syntactic_value e then begin
-          let (infty, subst) = Type.expand tctx.subst infty in
-          let tctx = { tctx with subst } in
-          let (qs, infty) = Type.gen monos infty in
-          (List.fold_right (fun q t -> Type.TQuant (q, t)) qs infty, tctx)
-        end else (infty, tctx) in
-
-      let qt = StrMap.find n new_ids in
-      if Type.is_general_enough infty qt then
-        (* then we register the annotated type *)
-        let n = (n, 0L) in
-        proc_exprs new_ids (V.Set.add n ds) (((n, qt), e) :: acc) tctx xs
-      else
-        (Error ["initializer is not general enough"], tctx)
-    end in
+      let< (e, tctx) = visit_generalized_lam bty tctx defs in
+      eval_init new_ids (V.Set.add (n, 0L) ds) ((n, bty, true, e) :: acc) tctx xs in
 
   match organize_vdefs vb with
     | Error e -> (Error e, tctx)
@@ -533,10 +542,10 @@ and visit_vdefs (recur : bool) (tctx : tctx) (vb : Ast.ast_vdef list) =
         | [] ->
           if recur then
             let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-            let (q, tctx) = proc_exprs new_ids V.Set.empty [] tctx vb in
+            let (q, tctx) = eval_init new_ids V.Set.empty [] tctx vb in
             let tctx = { tctx with idenv = List.tl tctx.idenv } in
             (q, tctx)
-          else proc_exprs new_ids V.Set.empty [] tctx vb
+          else eval_init new_ids V.Set.empty [] tctx vb
         | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
         | (n, None, _) :: xs ->
           let bty = Type.TVar ("", tctx.id)

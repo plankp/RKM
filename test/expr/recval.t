@@ -11,8 +11,8 @@ This is clearly allowed
   $ GenExpr << "EOF"
   > let rec loop x = loop x in loop ()
   > EOF
-  let rec { (loop : () -> $3) = \($0 : ()) -> let (x : ()) = ($0 : ()) in (loop : () -> $3) (x : ()) } in (loop : () -> $3) ()
-  : $3
+  let rec { (loop : (\$5. (\$3. $5 -> $3))) = \($0 : $5) -> let (x : $5) = ($0 : $5) in (loop : $5 -> $3) (x : $5) } in (loop : (\$5. (\$3. $5 -> $3))) (@()) (@$8) ()
+  : $8
 
 This is not allowed
   $ GenExpr << "EOF"
