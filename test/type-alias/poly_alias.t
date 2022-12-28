@@ -14,3 +14,4 @@
   Partial = (->) String : * -> *
   String = String : *
   [] = [] : * -> *
+  ref = ref : * -> *

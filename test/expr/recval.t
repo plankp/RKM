@@ -4,7 +4,7 @@ This is allowed because it's a ctor
   $ GenExpr << "EOF"
   > let rec x = 1 :: y; y = 2 :: x in ()
   > EOF
-  let rec { (x : [Int]) = (::) 1 (y : [Int]) ; (y : [Int]) = (::) 2 (x : [Int]) } in ()
+  let rec { (x : [Int]) = ((::) 1 (y : [Int]) : [Int]) ; (y : [Int]) = ((::) 2 (x : [Int]) : [Int]) } in ()
   : ()
 
 This is clearly allowed

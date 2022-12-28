@@ -27,6 +27,7 @@ Things that are (not so obviously) legal
   Int = Int : *
   String = String : *
   [] = [] : * -> *
+  ref = ref : * -> *
 
 An example of mutual recursive data definitions
   $ GenKind << "EOF"
@@ -43,6 +44,7 @@ An example of mutual recursive data definitions
   String = String : *
   Tree = Tree : * -> *
   [] = [] : * -> *
+  ref = ref : * -> *
 
 An example of some "normal" data definitions
   $ GenKind << "EOF"
@@ -61,6 +63,7 @@ An example of some "normal" data definitions
   Option = Option : * -> *
   String = String : *
   [] = [] : * -> *
+  ref = ref : * -> *
 
 A series of strange kind-related test cases
   $ GenKind << "EOF"
@@ -81,6 +84,7 @@ A series of strange kind-related test cases
   String = String : *
   T = F [] : *
   [] = [] : * -> *
+  ref = ref : * -> *
 
   $ GenKind << "EOF"
   > data F m = F (m Int)
@@ -100,6 +104,7 @@ A series of strange kind-related test cases
   String = String : *
   T = F ((->) Char) : *
   [] = [] : * -> *
+  ref = ref : * -> *
 
 And to make sure kinds are generalized correctly
   $ GenKind << "EOF"
@@ -118,3 +123,4 @@ And to make sure kinds are generalized correctly
   T2 = P [] : *
   T3 = P (->) : *
   [] = [] : * -> *
+  ref = ref : * -> *

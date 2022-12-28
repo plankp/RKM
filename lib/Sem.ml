@@ -28,6 +28,7 @@ let core_tctx : tctx = {
   tctors = map_of_list ([
     "(->)", (TCons (TCtorArr, []), TArr (TKind, TArr (TKind, TKind)));
     "[]", (TCons (TCtorVar Type.varList, []), TArr (TKind, TKind));
+    "ref", (TCons (TCtorVar Type.varRef, []), TArr (TKind, TKind));
     "Char", (TChr, TKind);
     "String", (TStr, TKind);
     "Int", (TInt, TKind);
@@ -37,6 +38,7 @@ let core_tctx : tctx = {
   dctors = map_of_list [
     "True", Type.varBool;
     "False", Type.varBool;
+    "ref", Type.varRef;
     "(::)", Type.varList;
   ];
 
@@ -593,8 +595,8 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let rec loop acc tctx = function
         | [] ->
           let gen_list acc =
-            let foldf xs x = ECons ("(::)", [x; xs]) in
-            List.fold_left foldf (ECons ("[]", [])) acc in
+            let foldf xs x = ECons ("(::)", ty, [x; xs]) in
+            List.fold_left foldf (ECons ("[]", ty, [])) acc in
           (Result.map gen_list acc, tctx)
         | x :: xs ->
           let (x, tctx) = visit ety tctx x in
@@ -608,7 +610,7 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       let rec loop acc tctx = function
         | ([], []) ->
           let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
-          (Ok (ECons (k, List.rev acc)), tctx)
+          (Ok (ECons (k, resty, List.rev acc)), tctx)
         | (x :: xs, y :: ys) ->
           let< (e, tctx) = visit x tctx y in
           loop (e :: acc) tctx (xs, ys)
@@ -616,7 +618,7 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
           (* promote the ctor into a function then partial apply it *)
           let rec promote lift id = function
             | [] ->
-              let e = ECons (k, List.rev_map (fun v -> EVar v) lift) in
+              let e = ECons (k, resty, List.rev_map (fun v -> EVar v) lift) in
               let e = List.fold_left (fun e a -> ELam (a, e)) e lift in
               let e = List.fold_right (fun a e -> EApp (e, a)) acc e in
               let resty = List.fold_right (fun a e -> Type.TArr (a, e)) remaining resty in
@@ -655,6 +657,16 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | (Ok op, Ok e) -> (Ok (EApp (op, e)), tctx)
         | _ -> (Error (merge_errors [op; e]), tctx)
     end
+    | Ast.Binary ("=", p, q) -> begin
+      let ety = Type.TVar ("", tctx.id)
+      and tctx = { tctx with id = Int64.succ tctx.id;
+        rules = (ty, Type.TTup []) :: tctx.rules } in
+      let (p, tctx) = visit (Type.tyRef ety) tctx p in
+      let (q, tctx) = visit ety tctx q in
+      match (p, q) with
+        | (Ok p, Ok q) -> (Ok (ESet (p, 0, q)), tctx)
+        | _ -> (Error (merge_errors [p; q]), tctx)
+    end
     | Ast.Binary ("&&", p, q) -> begin
       let (p, tctx) = visit Type.tyBool tctx p in
       let (q, tctx) = visit Type.tyBool tctx q in
@@ -662,7 +674,7 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | (Ok p, Ok q) ->
           let e = ECase (p, [
             PatDecons ("True", []), q;
-            PatDecons ("False", []), ECons ("False", [])]) in
+            PatDecons ("False", []), ECons ("False", Type.tyBool, [])]) in
           (Ok e, tctx)
         | _ -> (Error (merge_errors [p; q]), tctx)
     end
@@ -672,7 +684,7 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
       match (p, q) with
         | (Ok p, Ok q) ->
           let e = ECase (p, [
-            PatDecons ("True", []), ECons ("True", []);
+            PatDecons ("True", []), ECons ("True", Type.tyBool, []);
             PatDecons ("False", []), q]) in
           (Ok e, tctx)
         | _ -> (Error (merge_errors [p; q]), tctx)
@@ -693,6 +705,19 @@ and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
         | (Ok op, Ok p, Ok q) -> (Ok (EApp (EApp (op, p), q)), tctx)
         | _ -> (Error (merge_errors [op; p; q]), tctx)
     end
+    | Ast.Seq [] ->
+      let tctx = { tctx with rules = (ty, Type.TTup []) :: tctx.rules } in
+      (Ok (ETup []), tctx)
+    | Ast.Seq (x :: xs) ->
+      let rec loop acc tctx x = function
+        | [] ->
+          let< (x, tctx) = visit ty tctx x in
+          let foldf e v = ELet (NonRec ((("_", 0L), Type.TTup []), v), e) in
+          (Ok (List.fold_left foldf x acc), tctx)
+        | y :: xs ->
+          let< (x, tctx) = visit (Type.TTup []) tctx x in
+          loop (x :: acc) tctx y xs in
+      loop [] tctx x xs
     | Ast.Let (vb, e) -> begin
       let< ((new_ids, acc), tctx) = visit_vdefs false tctx vb in
       let tctx = { tctx with idenv = new_ids :: tctx.idenv } in

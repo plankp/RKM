@@ -27,26 +27,26 @@ Similar test cases for expressions (instead of patterns)
   $ GenExpr << "EOF"
   > True
   > EOF
-  True
+  (True : Bool)
   : Bool
 
   $ GenExpr << "EOF"
   > (True : Bool)
   > EOF
-  True
+  (True : Bool)
   : Bool
 
 Unlike patterns, undersaturated ctors are promoted into functions
   $ GenExpr << "EOF"
   > (::)
   > EOF
-  \($0 : $1) -> \($1 : [$1]) -> (::) ($0 : $1) ($1 : [$1])
+  \($0 : $1) -> \($1 : [$1]) -> ((::) ($0 : $1) ($1 : [$1]) : [$1])
   : $1 -> [$1] -> [$1]
 
   $ GenExpr << "EOF"
   > (::) ""
   > EOF
-  (\($0 : String) -> \($1 : [String]) -> (::) ($0 : String) ($1 : [String])) ""
+  (\($0 : String) -> \($1 : [String]) -> ((::) ($0 : String) ($1 : [String]) : [String])) ""
   : [String] -> [String]
 
 Oversaturated is definitely not allowed

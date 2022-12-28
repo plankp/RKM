@@ -29,7 +29,7 @@ Without the annotation, it does the right thing (and not generalize)
   $ GenExpr << "EOF"
   > \x -> let bad xs = x :: xs in bad []
   > EOF
-  \($0 : $10) -> let (x : $10) = ($0 : $10) in let (bad$1 : [$10] -> [$10]) = \($0 : [$10]) -> let (xs : [$10]) = ($0 : [$10]) in (::) (x : $10) (xs : [$10]) in let (bad : [$10] -> [$10]) = (bad$1 : [$10] -> [$10]) in (bad : [$10] -> [$10]) []
+  \($0 : $10) -> let (x : $10) = ($0 : $10) in let (bad$1 : [$10] -> [$10]) = \($0 : [$10]) -> let (xs : [$10]) = ($0 : [$10]) in ((::) (x : $10) (xs : [$10]) : [$10]) in let (bad : [$10] -> [$10]) = (bad$1 : [$10] -> [$10]) in (bad : [$10] -> [$10]) ([] : [$10])
   : $10 -> [$10]
 
 (or generalize)
@@ -109,5 +109,5 @@ But it should after adding explicit type annotations
   >         foo (_ :: xs) = foo xs
   > in foo []
   > EOF
-  let rec { (foo : (\a$1. [a$1] -> ())) = \($0 : [$20]) -> match ($0 : [$20]) with { (::) ($1 : $20) ($2 : [$20]) -> match ($2 : [$20]) with { (::) ($3 : $20) ($4 : [$20]) -> let (xs : [$20]) = ($2 : [$20]) in (foo : (\a$1. [a$1] -> ())) (@$20) (xs : [$20]); [] -> (foo : (\a$1. [a$1] -> ())) (@String) ((::) "abc" []); }; [] -> (foo : (\a$1. [a$1] -> ())) (@Int) ((::) 1 []); } } in (foo : (\a$1. [a$1] -> ())) (@$23) []
+  let rec { (foo : (\a$1. [a$1] -> ())) = \($0 : [$20]) -> match ($0 : [$20]) with { (::) ($1 : $20) ($2 : [$20]) -> match ($2 : [$20]) with { (::) ($3 : $20) ($4 : [$20]) -> let (xs : [$20]) = ($2 : [$20]) in (foo : (\a$1. [a$1] -> ())) (@$20) (xs : [$20]); [] -> (foo : (\a$1. [a$1] -> ())) (@String) ((::) "abc" ([] : [String]) : [String]); }; [] -> (foo : (\a$1. [a$1] -> ())) (@Int) ((::) 1 ([] : [Int]) : [Int]); } } in (foo : (\a$1. [a$1] -> ())) (@$23) ([] : [$23])
   : ()

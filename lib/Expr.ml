@@ -8,13 +8,14 @@ type expr =
   | EVar of name
   | ELit of literal
   | ERaise of string
-  | ECons of string * expr list
+  | ECons of string * Type.t * expr list  (* type is TCons on a variant *)
   | ETup of expr list
   | EApp of expr * expr
   | EType of Type.t
   | ELam of name * expr
   | ECase of expr * (pat * expr) list
   | ELet of binding * expr
+  | ESet of expr * int * expr (* for mutating refs... *)
 
 and pat =
   | PatIgnore
@@ -64,7 +65,10 @@ and output ppf (e : expr) =
       fprintf ppf "(%a" (output 0) x;
       List.iter (fprintf ppf ", %a" (output 0)) xs;
       output_string ppf ")"
-    | ECons (k, []) -> output_string ppf k
+    | ECons (k, ty, args) ->
+      fprintf ppf "(%s" k;
+      List.iter (fprintf ppf " %a" (output 2)) args;
+      fprintf ppf " : %a)" Type.output ty
     | ELam (v, e) ->
       fprintf ppf "\\%a -> %a" output_name v (output 0) e
     | ECase (s, cases) ->
@@ -77,13 +81,13 @@ and output ppf (e : expr) =
 
     | EApp (p, q) ->
       fprintf ppf "%a %a" (output 1) p (output 2) q
-    | ECons (k, args) ->
-      output_string ppf k;
-      List.iter (fprintf ppf " %a" (output 2)) args
+
+    | ESet (d, idx, s) ->
+      fprintf ppf "%a.%d = %a" (output 2) d idx (output 0) s
 
     and adjust_prec prec = function
-      | ELam _ | ELet _ as t when prec > 0 -> ETup [t]
-      | EApp _ | ECons (_, _ :: _) as t when prec > 1 -> ETup [t]
+      | ELam _ | ELet _ | ESet _ as t when prec > 0 -> ETup [t]
+      | EApp _ as t when prec > 1 -> ETup [t]
       | t -> t in
 
   output 0 ppf e
@@ -97,6 +101,10 @@ let rec expand_type env = function
     let (p, env) = expand_type env p in
     let (q, env) = expand_type env q in
     (EApp (p, q), env)
+  | ESet (p, idx, q) ->
+    let (p, env) = expand_type env p in
+    let (q, env) = expand_type env q in
+    (ESet (p, idx, q), env)
   | EType t ->
     let (t, env) = Type.expand env t in
     (EType t, env)
@@ -111,16 +119,17 @@ let rec expand_type env = function
   | ETup xs ->
     let (xs, env) = list_expand_type env xs in
     (ETup xs, env)
-  | ECons (k, xs) ->
+  | ECons (k, ty, xs) ->
     let (xs, env) = list_expand_type env xs in
-    (ECons (k, xs), env)
+    let (ty, env) = Type.expand env ty in
+    (ECons (k, ty, xs), env)
   | ECase (s, cases) ->
     let (s, env) = expand_type env s in
     let foldf (env, acc) (p, x) =
       let (x, env) = expand_type env x in
       (env, (p, x) :: acc) in
-  let (env, cases) = List.fold_left foldf (env, []) cases in
-  (ECase (s, List.rev cases), env)
+    let (env, cases) = List.fold_left foldf (env, []) cases in
+    (ECase (s, List.rev cases), env)
 
 and expand_binding env = function
   | NonRec ((n, t), i) ->
@@ -145,8 +154,9 @@ and list_expand_type env list =
 let rec collect_free : expr -> V.Set.t = function
   | ELit _ | ERaise _ | EType _ -> V.Set.empty
   | EVar (n, _) -> V.Set.singleton n
-  | EApp (p, q) -> V.Set.union (collect_free p) (collect_free q)
-  | ECons (_, xs) | ETup xs ->
+  | EApp (p, q) | ESet (p, _, q) ->
+    V.Set.union (collect_free p) (collect_free q)
+  | ECons (_, _, xs) | ETup xs ->
     let foldf s k = V.Set.union (collect_free k) s in
     List.fold_left foldf V.Set.empty xs
   | ELam ((n, _), e) -> V.Set.remove n (collect_free e)
@@ -177,7 +187,7 @@ let rec is_valid_rec (names : V.Set.t) (e : expr) : bool =
 
 and is_statically_constructive (names : V.Set.t) : expr -> bool = function
   | EVar _ | ELam _ -> true
-  | ECons (_, xs) | ETup xs ->
+  | ECons (_, _, xs) | ETup xs ->
     List.for_all (is_statically_constructive names) xs
   | ELet (NonRec ((name, _), i), e) ->
     is_statically_constructive names i &&
@@ -207,8 +217,10 @@ and is_immediately_linked (names : V.Set.t) : expr -> bool = function
   | _ -> false
 
 let rec is_syntactic_value : expr -> bool = function
+  | ECons (_, TCons (TCtorVar v, _), _) when v == Type.varRef -> false
+
   | EVar _ | ELit _ | ELam _ -> true
-  | ECons (_, xs) | ETup xs -> List.for_all is_syntactic_value xs
+  | ECons (_, _, xs) | ETup xs -> List.for_all is_syntactic_value xs
   | ELet (NonRec (_, i), e) -> is_syntactic_value i && is_syntactic_value e
   | ELet (Rec vb, e) ->
     List.for_all (fun (_, i) -> is_syntactic_value i) vb && is_syntactic_value e

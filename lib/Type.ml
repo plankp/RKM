@@ -55,6 +55,17 @@ let () =
   Hashtbl.replace varList.cases "[]" [];
   Hashtbl.replace varList.cases "(::)" [TRigid ("a", 0L); tyList (TRigid ("a", 0L))]
 
+(* data ref a = ref a *)
+let varRef : variant = {
+  name = "ref";
+  quants = [("a", 0L)];
+  cases = Hashtbl.create 1;
+}
+
+let tyRef t = TCons (TCtorVar varRef, [t])
+let () =
+  Hashtbl.replace varRef.cases "ref" [TRigid ("a", 0L)]
+
 let rec output ppf = function
   | TVar n | TRigid n -> V.output ppf n
   | TChr -> output_string ppf "Char"

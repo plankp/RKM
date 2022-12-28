@@ -24,6 +24,7 @@ type token =
 (* keywords and literals *)
   | LET
   | REC
+  | REF
   | IN
   | MATCH
   | WITH
@@ -66,6 +67,7 @@ let output_token ppf = function
   | SEMI -> fprintf ppf "SEMI"
   | LET -> fprintf ppf "LET"
   | REC -> fprintf ppf "REC"
+  | REF -> fprintf ppf "REF"
   | IN -> fprintf ppf "IN"
   | MATCH -> fprintf ppf "MATCH"
   | WITH -> fprintf ppf "WITH"
@@ -362,10 +364,10 @@ and expr2_prefix m tokens =
   loop [] tokens
 
 and expr3 m tokens =
-  (* slight annoyance where we want to treat ((Ctor) x y) as a function
-   * application but (Ctor x y) as a direct construction (assuming it's
-   * saturated). this makes a difference since one is a syntactic value and
-   * the other is not *)
+  (* generally ((Ctor) x y) will promote textual named data constructor into a
+   * function first, making it definitely NOT a syntactic value.
+   * (Ctor x y) on the other hand (assume saturated) CAN be a syntactic value.
+   * (Note: "ref" is never syntactic, so we don't have to handle it here *)
   match fetch_tokens 3 tokens with
     | ((LPAREN, p, f) :: (OPSEQ op, _, _) :: (RPAREN, _, _) :: xs, tl)
       when op.[0] = ':' && obeys_alignment m p f ->
@@ -392,12 +394,17 @@ and expr4 m tokens =
       Ok (Some (Var v), tl)
     | Cons ((IDCTOR v, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Ast.Cons (v, [])), tl)
+    | Cons ((REF, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Ast.Cons ("ref", [])), tl)
     | Cons ((STR s, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Lit (LitStr s)), tl)
     | Cons ((INT z, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Lit (LitInt z)), tl)
     | Cons ((CHAR z, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Lit (LitChar z)), tl)
+    | Cons ((LCURLY, p, f), _) as v when obeys_alignment m p f ->
+      let* (seq, tl) = parse_block expr (fun () -> v) in
+      Ok (Some (Seq seq), tl)
     | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f ->
       let* (xs, tl) = parse_cseq expr tl "missing expression" in
       let* (_, tl) = expect_tok RSQUARE tl "unclosed list expression" in
@@ -518,17 +525,18 @@ and pat3 m tokens =
    * parse would not result in a constant integer).
    *
    * similar thing happens with custom operators that represent ctors *)
+  let fetch_args k xs tl =
+    let tl = unfetch_tokens xs tl in
+    let* (args, tl) = parse_many ~m pat4 tl in
+    Ok (Some (Decons (k, args)), tl) in
   match fetch_tokens 3 tokens with
     | ((LPAREN, p, f) :: (OPSEQ op, q, _) :: (RPAREN, _, _) :: xs, tl) when obeys_alignment m p f ->
-      if op.[0] = ':' then
-        let tl = unfetch_tokens xs tl in
-        let* (args, tl) = parse_many ~m pat4 tl in
-        Ok (Some (Decons ("(" ^ op ^ ")", args)), tl)
+      if op.[0] = ':' then fetch_args ("(" ^ op ^ ")") xs tl
       else Error (q, "This operator can only be used to name values")
     | ((IDCTOR k, p, f) :: xs, tl) when obeys_alignment m p f ->
-      let tl = unfetch_tokens xs tl in
-      let* (args, tl) = parse_many ~m pat4 tl in
-      Ok (Some (Decons (k, args)), tl)
+      fetch_args k xs tl
+    | ((REF, p, f) :: xs, tl) when obeys_alignment m p f ->
+      fetch_args "ref" xs tl
     | ((OPSEQ "-", p, f) :: xs, tl) when obeys_alignment m p f -> begin
       let tl = unfetch_tokens xs tl in
       let* (z, tl) = expect_rule (pat4 m) tl "missing pattern after integer negation" in
@@ -546,6 +554,8 @@ and pat4 m tokens =
       Ok (Some (Cap (Some n)), tl)
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Decons (k, [])), tl)
+    | Cons ((REF, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (Decons ("ref", [])), tl)
     | Cons ((STR s, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (Match (LitStr s)), tl)
     | Cons ((INT z, p, f), tl) when obeys_alignment m p f ->
@@ -597,6 +607,8 @@ and annot3 m tokens =
       Ok (Some (TypeVar n), tl)
     | Cons ((IDCTOR k, p, f), tl) when obeys_alignment m p f ->
       Ok (Some (TypeCtor k), tl)
+    | Cons ((REF, p, f), tl) when obeys_alignment m p f ->
+      Ok (Some (TypeCtor "ref"), tl)
     | Cons ((LSQUARE, p, f), tl) when obeys_alignment m p f -> begin
       let* (e, tl) = annot ~-1 tl in
       let* (_, tl) = expect_tok RSQUARE tl "unclosed list type" in

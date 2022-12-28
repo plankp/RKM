@@ -87,6 +87,7 @@ rule read pos first = parse
   | "def" { (first, pos, movecol pos 3, DEF) }
   | "let" { (first, pos, movecol pos 3, LET) }
   | "rec" { (first, pos, movecol pos 3, REC) }
+  | "ref" { (first, pos, movecol pos 3, REF) }
   | "in" { (first, pos, movecol pos 2, IN) }
   | "if" { (first, pos, movecol pos 2, IF) }
   | '_' { (first, pos, movecol pos 1, UNDERSCORE) }

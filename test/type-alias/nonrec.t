@@ -11,3 +11,4 @@
   Int = Int : *
   String = String : *
   [] = [] : * -> *
+  ref = ref : * -> *
