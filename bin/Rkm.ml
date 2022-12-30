@@ -5,10 +5,10 @@ module S = Solver
 
 let exec name expr =
   print_endline name;
-  match Sem.infer Sem.init_context expr with
+  match Sem.infer Sem.init_context [] expr with
     | Error xs -> List.iter (printf "  Error: %s\n") xs
     | Ok (e, t, k, _) ->
-      match S.solve [k] with
+      match S.solve k with
         | Error e ->
           List.iter (fun e -> printf "  Error: %s\n" (S.explain e)) e
         | Ok [] ->
@@ -62,6 +62,9 @@ let () =
              EVar "f");
     "[pass] let f = \\x -> \\y -> (x, y) in f",
       ELet ("f", EAbs ("x", EAbs ("y", ETup [EVar "x"; EVar "y"])),
+            EVar "f");
+    "[pass] let f = \\a -> \\b -> a b in f",
+      ELet ("f", EAbs ("a", EAbs ("b", EApp (EVar "a", EVar "b"))),
             EVar "f");
   ] in
 

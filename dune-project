@@ -16,7 +16,7 @@
 (documentation https://github.com/plankp/RKM/blob/main/README.md)
 
 (package
- (name rkm)
+ (name genk)
  (synopsis "Just yet another programming language")
  (depends
   (ocaml (>= 4.08.0))
