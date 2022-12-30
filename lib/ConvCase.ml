@@ -1,5 +1,5 @@
 open Printf
-open Expr
+open Core
 open Type
 module V = VarInfo
 
@@ -10,7 +10,7 @@ type scrut = expr * Type.t
 let dump_pat_matrix (m : pat_matrix) =
   let iterf (p, e) =
     List.iter (printf "%a " Ast.output_pat) p;
-    printf "-> (%a)\n" Expr.output e in
+    printf "-> (%a)\n" Core.output e in
   print_endline "{";
   List.iter iterf m;
   print_endline "}"
@@ -53,7 +53,7 @@ let specialize_tup (s : expr) (xs : Type.t list) (pivot : Ast.ast_pat list) (m :
     | Ast.Cap None ->
       (List.rev_append (Lazy.force expansion) m, a) :: acc
     | Ast.Cap (Some cap) ->
-      (List.rev_append (Lazy.force expansion) m, bind cap 0L (TTup xs) s a) :: acc
+      (List.rev_append (Lazy.force expansion) m, bind cap Z.zero (TTup xs) s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -65,7 +65,7 @@ let specialize_var ((s, ty) : scrut) (k : string) (xs : Type.t list) (pivot : As
     | Ast.Cap None ->
       (List.rev_append (Lazy.force expansion) m, a) :: acc
     | Ast.Cap (Some cap) ->
-      (List.rev_append (Lazy.force expansion) m, bind cap 0L ty s a) :: acc
+      (List.rev_append (Lazy.force expansion) m, bind cap Z.zero ty s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -73,14 +73,14 @@ let specialize_lit ((s, ty) : scrut) (lit : Ast.ast_lit) (pivot : Ast.ast_pat li
   let foldf acc (m, a) = function
     | Ast.Match v when v = lit -> (m, a) :: acc
     | Ast.Cap None -> (m, a) :: acc
-    | Ast.Cap (Some cap) -> (m, bind cap 0L ty s a) :: acc
+    | Ast.Cap (Some cap) -> (m, bind cap Z.zero ty s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
 let defaulted ((s, ty) : scrut) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let foldf acc (m, a) = function
     | Ast.Cap None -> (m, a) :: acc
-    | Ast.Cap (Some cap) -> (m, bind cap 0L ty s a) :: acc
+    | Ast.Cap (Some cap) -> (m, bind cap Z.zero ty s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -90,7 +90,7 @@ let search_pivot pats =
     | tl -> (List.rev acc, tl) in
   loop [] pats
 
-let rec conv (id : int64) (s : scrut list) (m : pat_matrix) =
+let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
   match m with
     | [] -> ERaise "UNHANDLED PATTERN"
     | (x, action) :: _ ->
@@ -98,17 +98,18 @@ let rec conv (id : int64) (s : scrut list) (m : pat_matrix) =
         | (hd, []) -> begin
           (* first row was all wildcards, we're done *)
           let foldf action (s, ty) = function
-            | Ast.Cap (Some k) -> bind k 0L ty s action
+            | Ast.Cap (Some k) -> bind k Z.zero ty s action
             | _ -> action in
           List.fold_left2 foldf action s hd
         end
         | (lenenc, _) ->
           let ((s, ty), pivot, rem, m) = partition lenenc s m in
+          let ty = unwrap ty in
           match ty with
             | TTup xs ->
               let foldf (id, rem, decons) x =
                 let tmp = (("", id), x) in
-                (Int64.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
+                (Z.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
               let (id, rem, decons) = List.fold_left foldf (id, rem, []) xs in
 
               let m = specialize_tup s xs pivot m in
@@ -134,7 +135,7 @@ let rec conv (id : int64) (s : scrut list) (m : pat_matrix) =
 
                   let foldf (id, rem, decons) x =
                     let tmp = (("", id), x) in
-                    (Int64.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
+                    (Z.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
                   let (id, rem, decons) = List.fold_left foldf (id, rem, []) args in
 
                   let m = specialize_var (s, ty) k args pivot m in

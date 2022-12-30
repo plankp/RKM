@@ -2,17 +2,26 @@ open Printf
 module V = VarInfo
 
 type t =
-  | TVar of V.t       (* a (weak) type variable *)
-  | TRigid of V.t     (* a rigid type variable: only unifies with itself *)
+(* a weak unification variable *)
+  | TVar of tvinfo
+
+(* a rigid type variable: what TQuants and ETyLam uses *)
+  | TRigid of V.t
+
+(* common monotypes *)
   | TChr
   | TStr
   | TInt
   | TArr of t * t
   | TTup of t list
-  | TKind
   | TCons of tctor * t list
+
+(* for higher kinded stuff *)
+  | TKind
   | TQuant of V.t * t (* quantized over rigid variables *)
   | TApp of t * t
+
+and tvinfo = V.t * t option ref
 
 and tctor =
   | TCtorArr
@@ -46,28 +55,34 @@ let () =
 (* data [a] = [] | a :: [a] *)
 let varList : variant = {
   name = "[]";
-  quants = [("a", 0L)];
+  quants = [("a", Z.zero)];
   cases = Hashtbl.create 2;
 }
 
 let tyList t = TCons (TCtorVar varList, [t])
 let () =
   Hashtbl.replace varList.cases "[]" [];
-  Hashtbl.replace varList.cases "(::)" [TRigid ("a", 0L); tyList (TRigid ("a", 0L))]
+  Hashtbl.replace varList.cases "(::)" [TRigid ("a", Z.zero); tyList (TRigid ("a", Z.zero))]
 
 (* data ref a = ref a *)
 let varRef : variant = {
   name = "ref";
-  quants = [("a", 0L)];
+  quants = [("a", Z.zero)];
   cases = Hashtbl.create 1;
 }
 
 let tyRef t = TCons (TCtorVar varRef, [t])
 let () =
-  Hashtbl.replace varRef.cases "ref" [TRigid ("a", 0L)]
+  Hashtbl.replace varRef.cases "ref" [TRigid ("a", Z.zero)]
+
+let rec unwrap : t -> t = function
+  | TVar (_, ({ contents = Some t } as r)) ->
+    let t = unwrap t in r := Some t; t
+  | t -> t
 
 let rec output ppf = function
-  | TVar n | TRigid n -> V.output ppf n
+  | TVar (_, { contents = Some _ }) as t -> output ppf (unwrap t)
+  | TVar (n, _) | TRigid n -> V.output ppf n
   | TChr -> output_string ppf "Char"
   | TStr -> output_string ppf "String"
   | TInt -> output_string ppf "Int"
@@ -85,12 +100,13 @@ let rec output ppf = function
   | TCons (k, []) -> output_string ppf (tctor_to_string k)
   | TCons (k, x :: xs) ->
     fprintf ppf "%s %a" (tctor_to_string k) output (check_app_prec x);
-    List.iter (fun x -> fprintf ppf ", %a" output (check_app_prec x)) xs
+    List.iter (fun x -> fprintf ppf " %a" output (check_app_prec x)) xs
   | TQuant (n, t) ->
     fprintf ppf "(\\%a. %a)" V.output n output t
 
 and to_string = function
-  | TVar n | TRigid n -> V.to_string n
+  | TVar (_, { contents = Some _ }) as t -> to_string (unwrap t)
+  | TVar (n, _) | TRigid n -> V.to_string n
   | TChr -> "Char"
   | TStr -> "String"
   | TInt -> "Int"
@@ -112,7 +128,7 @@ and to_string = function
   | TCons (k, x :: xs) ->
     let buf = Buffer.create 32 in
     bprintf buf "%s %s" (tctor_to_string k) (to_string (check_app_prec x));
-    List.iter (fun x -> bprintf buf ", %s" (to_string (check_app_prec x))) xs;
+    List.iter (fun x -> bprintf buf " %s" (to_string (check_app_prec x))) xs;
     Buffer.contents buf
   | TQuant (n, t) ->
     sprintf "(\\%s. %s)" (V.to_string n) (to_string t)
@@ -122,88 +138,24 @@ and tctor_to_string = function
   | TCtorVar k -> k.name
 
 and check_app_prec = function
+  | TVar (_, { contents = Some _ }) as t -> check_app_prec (unwrap t)
   | TApp _ | TCons (_, _ :: _) as q -> TTup [q]
   | q -> q
 
 and check_arr_prec = function
+  | TVar (_, { contents = Some _ }) as t -> check_arr_prec (unwrap t)
   | TArr _ as q -> TTup [q]
   | q -> q
 
-let is_general_enough (a : t) (b : t) =
-  let rec unpeel_quants = function
-    | TQuant (_, t) -> unpeel_quants t
-    | t -> t in
-
-  let mapping = Hashtbl.create 64 in
-  let rec is_general_enough = function
-    | [] -> true
-    | (TRigid v, r) :: xs -> begin
-      match (Hashtbl.find_opt mapping v, r) with
-        | (Some (TRigid p), TRigid r) ->
-          if p = r then is_general_enough xs
-          else false
-        | (Some p, r) -> is_general_enough ((p, r) :: xs)
-        | (None, r) ->
-          Hashtbl.add mapping v r;
-          is_general_enough xs
-    end
-    | (TVar p, TVar q) :: xs when p = q ->
-      is_general_enough xs
-    | ((TChr, TChr) | (TStr, TStr) | (TInt, TInt) | (TKind, TKind)) :: xs ->
-      is_general_enough xs
-    | (TArr (p, q), TArr (s, t)) :: xs
-    | (TApp (p, q), TApp (s, t)) :: xs ->
-      is_general_enough ((p, s) :: (q, t) :: xs)
-    | (TTup xs, TTup ys) :: tl
-    | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) :: tl ->
-      tail tl (xs, ys)
-    | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) :: tl when k1 == k2 ->
-      tail tl (xs, ys)
-    | _ -> false
-
-  and tail acc = function
-    | ([], []) -> is_general_enough acc
-    | (x :: xs, y :: ys) -> tail ((x, y) :: acc) (xs, ys)
-    | _ -> false in
-
-  is_general_enough [unpeel_quants a, unpeel_quants b]
-
-let gen (ignore : V.Set.t) (t : t) : V.t list * t =
-  let mapping = Hashtbl.create 64 in
-  let quants = ref [] in
-  let rec visit = function
-    | TVar n -> begin
-      match Hashtbl.find_opt mapping n with
-        | Some n -> n
-        | None ->
-          (* always register it in the hashtbl *)
-          if V.Set.mem n ignore then begin
-            Hashtbl.add mapping n (TVar n);
-            TVar n
-          end else begin
-            quants := n :: !quants;
-            Hashtbl.add mapping n (TRigid n);
-            TRigid n
-          end
-    end
-    | TRigid _ | TChr | TStr | TInt | TKind as t -> t
-    | TArr (p, q) ->
-      let p = visit p in TArr (p, visit q)
-    | TApp (p, q) ->
-      let p = visit p in TApp (p, visit q)
-    | TTup xs ->
-      let xs = List.fold_left (fun acc x -> visit x :: acc) [] xs in
-      TTup (List.rev xs)
-    | TCons (k, xs) ->
-      let xs = List.fold_left (fun acc x -> visit x :: acc) [] xs in
-      TCons (k, List.rev xs)
-    | TQuant _ -> failwith "Type should not have quantifiers" in
-
-  let t = visit t in
-  (List.rev !quants, t)
+let unpeel_quants (t : t) =
+  let rec loop acc = function
+    | TQuant (n, t) -> loop (n :: acc) t
+    | t -> (acc, t) in
+  loop [] t
 
 let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
   | TRigid n as t -> V.Map.find_opt n map |> Option.value ~default:t
+  | TVar (_, { contents = Some _ }) as t -> eval map env (unwrap t)
   | TVar _ | TChr | TStr | TInt | TKind as t -> t
   | TArr (p, q) -> TArr (eval map env p, eval map env q)
   | TTup xs -> TTup (List.map (eval map env) xs)
@@ -238,171 +190,54 @@ let inst_case (v : variant) (k : string) (targs : t list) =
 
 let rec contains_quant = function
   | TQuant _ -> true
+  | TVar (_, { contents = Some _ }) as t -> contains_quant (unwrap t)
   | TVar _ | TRigid _ | TChr | TStr | TInt | TKind -> false
   | TArr (p, q) | TApp (p, q) -> contains_quant p || contains_quant q
   | TTup xs | TCons (_, xs) -> List.exists contains_quant xs
 
-let rec contains_var n = function
-  | TVar m -> n = m
+let rec contains_tvar n = function
+  | TVar (_, { contents = Some _ }) as t -> contains_tvar n (unwrap t)
+  | TVar (m, _) -> n = m
   | TRigid _ | TChr | TStr | TInt | TKind -> false
   | TArr (p, q) | TApp (p, q) ->
-    contains_var n p || contains_var n q
+    contains_tvar n p || contains_tvar n q
   | TTup xs | TCons (_, xs) ->
-    List.exists (contains_var n) xs
-  | TQuant (_, t) -> contains_var n t
+    List.exists (contains_tvar n) xs
+  | TQuant (_, t) -> contains_tvar n t
 
-let free_vars ?(acc = V.Set.empty) t =
+let fold_free_tvars (f : tvinfo -> 'a -> 'a) (t : t) (i : 'a) : 'a =
+  let rec loop i = function
+    | [] -> i
+    | TVar (_, { contents = Some _ }) as t :: xs -> loop i (unwrap t :: xs)
+    | TVar tvinfo :: xs -> loop (f tvinfo i) xs
+    | (TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop i xs
+    | (TArr (p, q) | TApp (p, q)) :: xs -> loop i (p :: q :: xs)
+    | (TTup ys | TCons (_, ys)) :: xs -> loop (loop i ys) xs
+    | TQuant (_, t) :: xs -> loop i (t :: xs) in
+  loop i [t]
+
+let free_tvars ?(acc = V.Set.empty) (t : t) : V.Set.t =
+  fold_free_tvars (fun (n, _) acc -> V.Set.add n acc) t acc
+
+let collect_free_tvars (t : t) : tvinfo list =
+  let foldf (n, r) (fs, set) =
+    if V.Set.mem n set then (fs, set)
+    else ((n, r) :: fs, V.Set.add n set) in
+  fold_free_tvars foldf t ([], V.Set.empty) |> fst |> List.rev
+
+let dangerous_vars ?(acc = V.Set.empty) (t : t) : V.Set.t =
   let rec loop acc = function
     | [] -> acc
-    | TVar n :: xs -> loop (V.Set.add n acc) xs
-    | (TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop acc xs
-    | (TArr (p, q) | TApp (p, q)) :: xs -> loop acc (p :: q :: xs)
-    | (TTup ys | TCons (_, ys)) :: xs -> loop acc (List.rev_append ys xs)
-    | TQuant (_, t) :: xs -> loop acc (t :: xs) in
-  loop acc [t]
-
-let dangerous_vars ?(acc = V.Set.empty) t =
-  let rec loop acc = function
-    | [] -> acc
+    | TVar (_, { contents = Some _ }) as t :: xs -> loop acc (unwrap t :: xs)
     | (TVar _ | TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop acc xs
     | (TCons (TCtorVar k, _) as t) :: xs when k == varRef ->
-      loop (free_vars ~acc t) xs
+      loop (free_tvars ~acc t) xs
     | (TCons (TCtorVar k, ys)) :: xs when k == varList ->
       loop acc (List.rev_append ys xs)
-    | TArr (p, q) :: xs -> loop (free_vars ~acc p) (q :: xs)
+    | TArr (p, q) :: xs -> loop (free_tvars ~acc p) (q :: xs)
     | TTup ys :: xs -> loop acc (List.rev_append ys xs)
     | TQuant (_, t) :: xs -> loop acc (t :: xs)
     | t :: xs ->
       (* assume the worst for everything else *)
-      loop (free_vars ~acc t) xs in
+      loop (free_tvars ~acc t) xs in
   loop acc [t]
-
-let rec shallow_subst env = function
-  | TVar n -> begin
-    match V.Map.find_opt n env with
-      | None -> (TVar n, env)
-      | Some (TVar _ as t) ->
-        (* do path compression *)
-        let (s, env) = shallow_subst env t in
-        if s = t then (s, env)
-        else (s, V.Map.add n s env)
-      | Some t -> (t, env)
-  end
-  | t -> (t, env)
-
-let rec expand ?(ground = None) env = function
-  | TRigid _ | TChr | TStr | TInt | TKind as t -> (t, env)
-  | TArr (p, q) ->
-    let (p, env) = expand env p in
-    let (q, env) = expand env q in
-    (TArr (p, q), env)
-  | TApp (p, q) ->
-    let (p, env) = expand env p in
-    let (q, env) = expand env q in
-    (TApp (p, q), env)
-  | TTup xs ->
-    let foldf (env, acc) x =
-      let (x, env) = expand env x in
-      (env, x :: acc) in
-    let (env, xs) = List.fold_left foldf (env, []) xs in
-    (TTup (List.rev xs), env)
-  | TCons (k, xs) ->
-    let foldf (env, acc) x =
-      let (x, env) = expand env x in
-      (env, x :: acc) in
-    let (env, xs) = List.fold_left foldf (env, []) xs in
-    (TCons (k, List.rev xs), env)
-  | TVar n ->
-    let (t, env) = shallow_subst env (TVar n) in
-    if t = TVar n then
-      (Option.value ~default:t ground, env)
-    else begin
-      let (t, env) = expand env t in
-      (t, V.Map.add n t env)
-    end
-  | TQuant (n, t) ->
-    let (t, env) = expand env t in
-    (TQuant (n, t), env)
-
-let init_last head tail =
-  let rec loop acc head = function
-    | [] -> (List.rev acc, head)
-    | x :: xs -> loop (head :: acc) x xs in
-  loop [] head tail
-
-type bad_unify =
-  | Mismatch of t * t
-  | Cyclic of V.t * t
-
-let explain ?(env = None) : bad_unify -> string = function
-  | Cyclic (v, q) ->
-    sprintf "Cannot unify recursive types %s and %s" (V.to_string v) (to_string q)
-  | Mismatch (p, q) ->
-    let (p, q) = match env with
-      | None -> (p, q)
-      | Some env ->
-        let (p, env) = expand env p in
-        let (q, _) = expand env q in
-        (p, q) in
-    sprintf "Cannot unify unrelated types %s and %s" (to_string p) (to_string q)
-
-let unify (env : t V.Map.t) (rules : (t * t) list) =
-  let rec loop env rem = function
-    | [] -> (env, rem)
-    | (p, q) :: tl ->
-      let (p, env) = shallow_subst env p in
-      let (q, env) = shallow_subst env q in
-      let rec tail acc = function
-        | ([], []) -> loop env rem (List.rev_append acc tl)
-        | (x :: xs, y :: ys) -> tail ((x, y) :: acc) (xs, ys)
-        | _ -> loop env (Mismatch (p, q) :: rem) tl in
-      match (p, q) with
-        | (TQuant _, _) | (_, TQuant _) ->
-          failwith "UNKNOWN TQUANT DURING UNIFY STEP"
-
-        | (TRigid p, TRigid q) when p = q ->
-          loop env rem tl
-        | (TChr, TChr) | (TStr, TStr) | (TInt, TInt)
-        | (TKind, TKind) ->
-          loop env rem tl
-
-        | (TArr (f1, a1), TArr (f2, a2))
-        | (TApp (f1, a1), TApp (f2, a2)) ->
-          loop env rem ((f1, f2) :: (a1, a2) :: tl)
-
-        | (TTup xs, TTup ys)
-        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
-          tail [] (xs, ys)
-
-        | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) when k1 == k2 ->
-          tail [] (xs, ys)
-
-        | (TCons (k, x :: xs), TApp (f, a))
-        | (TApp (f, a), TCons (k, x :: xs)) ->
-          let (init, last) = init_last x xs in
-          loop env rem ((TCons (k, init), f) :: (last, a) :: tl)
-
-        | (TArr (p, q), TApp (f, a))
-        | (TApp (f, a), TArr (p, q)) ->
-          loop env rem ((TCons (TCtorArr, [p]), f) :: (q, a) :: tl)
-
-        | (TVar p, TVar q) ->
-          let ordering = V.compare p q in
-          let env =
-            if ordering < 0 then
-              V.Map.add p (TVar q) env
-            else if ordering > 0 then
-              V.Map.add q (TVar p) env
-            else env in
-          loop env rem tl
-
-        | (TVar n, t) | (t, TVar n) ->
-          let (t, env) = expand env t in
-          if contains_var n t then
-            loop env (Cyclic (n, t) :: rem) tl
-          else
-            loop (V.Map.add n t env) rem tl
-
-        | _ ->
-          loop env (Mismatch (p, q) :: rem) tl in
-  loop env [] rules

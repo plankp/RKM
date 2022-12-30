@@ -12,7 +12,7 @@ let () =
     | Error (p, e) ->
       printf "Error (%d, %d): %s\n" (get_lineno p) (get_colno p) e
     | Ok acc ->
-      match visit_prog core_tctx acc with
+      match visit_prog core_context acc with
         | Error e -> List.iter (printf "Error: %s\n") e
         | Ok (_, tctx) ->
           let iterf n (t, k) = printf "%s = %a : %a\n" n Type.output t Type.output k in

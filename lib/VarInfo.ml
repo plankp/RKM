@@ -1,5 +1,5 @@
 module S = struct
-  type t = string * Int64.t
+  type t = string * Z.t
   let compare = compare
 end
 
@@ -9,20 +9,20 @@ module Map = Map.Make (S)
 module Set = Set.Make (S)
 
 let output ppf ((n, id) : t) =
-  if id = 0L && n <> "" then output_string ppf n
-  else Printf.fprintf ppf "%s$%Lu" n id
+  if id = Z.zero && n <> "" then output_string ppf n
+  else Printf.fprintf ppf "%s$%a" n Z.output id
 
 and to_string ((n, id) : t) =
-  if id = 0L && n <> "" then n
-  else Printf.sprintf "%s$%Lu" n id
+  if id = Z.zero && n <> "" then n
+  else Printf.sprintf "%s$%s" n (Z.to_string id)
 
 let mk_fresh (n : t) (env : Set.t) : t =
   if Set.mem n env then
     let (n, _) = n in
     let rec loop id =
-      if Set.mem (n, id) env then loop (Int64.succ id)
+      if Set.mem (n, id) env then loop (Z.succ id)
       else (n, id) in
-    loop 0L
+    loop Z.zero
   else n
 
 let def_var (lift : t -> 'a) (x : t) (map : 'a Map.t) (env : Set.t) =

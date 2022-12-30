@@ -4,8 +4,8 @@ module V = VarInfo
 
 type env = value V.Map.t
 and value =
-  | VLit of Expr.literal
-  | VLam of env * V.t * Expr.expr
+  | VLit of Core.literal
+  | VLam of env * V.t * Core.expr
   | VTup of value ref list
   | VCons of string * bool * value ref list (* is list or not *)
   | VCell of value option ref (* for recursive values *)
@@ -49,7 +49,11 @@ let rec unwrap = function
 
 let ( let* ) = Result.bind
 
-let rec eval (env : env) : Expr.expr -> (value, string) result = function
+let rec eval (env : env) : Core.expr -> (value, string) result = function
+(* ignore type things for now *)
+  | ETyLam (_, e) -> eval env e
+  | EApp (p, EType _) -> eval env p
+
   | ELit v -> Ok (VLit v)
   | ERaise msg -> Error msg
   | ELam ((n, _), e) -> Ok (VLam (env, n, e))
@@ -72,7 +76,6 @@ let rec eval (env : env) : Expr.expr -> (value, string) result = function
     let* env = add_rec_def env vb in
     eval env e
 
-  | EApp (p, EType _) -> eval env p
   | EApp (p, q) -> begin
     let* p = eval env p in
     let* q = eval env q in
@@ -91,7 +94,7 @@ let rec eval (env : env) : Expr.expr -> (value, string) result = function
       | _ -> failwith "INVALID REFERENT SITE"
   end
   | ECase (s, cases) -> begin
-    let open Expr in
+    let open Core in
     let decons_helper env p s =
       List.fold_left2 (fun env p s -> augment_env env p !s) env p s in
     let rec loop = function
@@ -116,10 +119,10 @@ and eval_ref_list env list =
       loop (ref x :: acc) xs in
   loop [] list
 
-and augment_env (env : env) ((n, _) : Expr.name) (v : value) =
+and augment_env (env : env) ((n, _) : Core.name) (v : value) =
   V.Map.add n v env
 
-and add_rec_def (env : env) (m : (Expr.name * Expr.expr) list) : (env, string) result =
+and add_rec_def (env : env) (m : (Core.name * Core.expr) list) : (env, string) result =
   let mkcell n env = V.Map.add n (VCell (ref None)) env in
   let env = List.fold_left (fun env ((n, _), _) -> mkcell n env) env m in
   let rec loop = function

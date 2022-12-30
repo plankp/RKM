@@ -13,6 +13,7 @@ type expr =
   | EApp of expr * expr
   | EType of Type.t
   | ELam of name * expr
+  | ETyLam of V.t * expr
   | ECase of expr * (pat * expr) list
   | ELet of binding * expr
   | ESet of expr * int * expr (* for mutating refs... *)
@@ -71,6 +72,8 @@ and output ppf (e : expr) =
       fprintf ppf " : %a)" Type.output ty
     | ELam (v, e) ->
       fprintf ppf "\\%a -> %a" output_name v (output 0) e
+    | ETyLam (v, e) ->
+      fprintf ppf "\\ @%a -> %a" V.output v (output 0) e
     | ECase (s, cases) ->
       fprintf ppf "match %a with { " (output 0) s;
       let iterf (p, e) = fprintf ppf "%a -> %a; " output_pat p (output 0) e in
@@ -86,70 +89,11 @@ and output ppf (e : expr) =
       fprintf ppf "%a.%d = %a" (output 2) d idx (output 0) s
 
     and adjust_prec prec = function
-      | ELam _ | ELet _ | ESet _ as t when prec > 0 -> ETup [t]
+      | ETyLam _ | ELam _ | ELet _ | ESet _ as t when prec > 0 -> ETup [t]
       | EApp _ as t when prec > 1 -> ETup [t]
       | t -> t in
 
   output 0 ppf e
-
-let rec expand_type env = function
-  | ELit _ | ERaise _ as t -> (t, env)
-  | EVar (n, t) ->
-    let (t, env) = Type.expand env t in
-    (EVar (n, t), env)
-  | EApp (p, q) ->
-    let (p, env) = expand_type env p in
-    let (q, env) = expand_type env q in
-    (EApp (p, q), env)
-  | ESet (p, idx, q) ->
-    let (p, env) = expand_type env p in
-    let (q, env) = expand_type env q in
-    (ESet (p, idx, q), env)
-  | EType t ->
-    let (t, env) = Type.expand env t in
-    (EType t, env)
-  | ELam ((n, t), e) ->
-    let (t, env) = Type.expand env t in
-    let (e, env) = expand_type env e in
-    (ELam ((n, t), e), env)
-  | ELet (vb, e) ->
-    let (vb, env) = expand_binding env vb in
-    let (e, env) = expand_type env e in
-    (ELet (vb, e), env)
-  | ETup xs ->
-    let (xs, env) = list_expand_type env xs in
-    (ETup xs, env)
-  | ECons (k, ty, xs) ->
-    let (xs, env) = list_expand_type env xs in
-    let (ty, env) = Type.expand env ty in
-    (ECons (k, ty, xs), env)
-  | ECase (s, cases) ->
-    let (s, env) = expand_type env s in
-    let foldf (env, acc) (p, x) =
-      let (x, env) = expand_type env x in
-      (env, (p, x) :: acc) in
-    let (env, cases) = List.fold_left foldf (env, []) cases in
-    (ECase (s, List.rev cases), env)
-
-and expand_binding env = function
-  | NonRec ((n, t), i) ->
-    let (i, env) = expand_type env i in
-    let (t, env) = Type.expand env t in
-    (NonRec ((n, t), i), env)
-  | Rec xs ->
-    let foldf (env, acc) ((n, t), i) =
-      let (i, env) = expand_type env i in
-      let (t, env) = Type.expand env t in
-      (env, ((n, t), i) :: acc) in
-    let (env, xs) = List.fold_left foldf (env, []) xs in
-    (Rec (List.rev xs), env)
-
-and list_expand_type env list =
-  let foldf (env, acc) x =
-    let (x, env) = expand_type env x in
-    (env, x :: acc) in
-  let (env, list) = List.fold_left foldf (env, []) list in
-  (List.rev list, env)
 
 let rec collect_free : expr -> V.Set.t = function
   | ELit _ | ERaise _ | EType _ -> V.Set.empty
@@ -160,6 +104,7 @@ let rec collect_free : expr -> V.Set.t = function
     let foldf s k = V.Set.union (collect_free k) s in
     List.fold_left foldf V.Set.empty xs
   | ELam ((n, _), e) -> V.Set.remove n (collect_free e)
+  | ETyLam (_, e) -> collect_free e
   | ELet (NonRec ((n, _), i), e) ->
     V.Set.union (collect_free i) (V.Set.remove n (collect_free e))
   | ELet (Rec vb, e) ->

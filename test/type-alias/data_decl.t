@@ -117,7 +117,7 @@ And to make sure kinds are generalized correctly
   Bool = Bool : *
   Char = Char : *
   Int = Int : *
-  P = P : (\$0. $0 -> *)
+  P = P : (\$2. $2 -> *)
   String = String : *
   T1 = P Int : *
   T2 = P [] : *

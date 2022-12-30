@@ -14,7 +14,7 @@ This does not type check because both a's refer to the same type variable
   $ GenExpr << "EOF"
   > {match (1, "") with (x : a, y : a) -> (y, x)}
   > EOF
-  Error: Cannot unify unrelated types Int and String
+  Error: Cannot unify unrelated types String and Int
 
 Basically patterns can bind fresh type variables
   $ GenExpr << "EOF"
@@ -23,8 +23,8 @@ Basically patterns can bind fresh type variables
   >        (x, y : a) -> (y : a, x)
   > }
   > EOF
-  \($0 : (a$6, a$12)) -> match ($0 : (a$6, a$12)) with { (($1 : a$6), ($2 : a$12)) -> let (x : a$6) = ($1 : a$6) in let (y : a$12) = ($2 : a$12) in ((y : a$12), (x : a$6)); }
-  : (a$6, a$12) -> (a$12, a$6)
+  \($0 : (a$6, a$13)) -> match ($0 : (a$6, a$13)) with { (($1 : a$6), ($2 : a$13)) -> let (x : a$6) = ($1 : a$6) in let (y : a$13) = ($2 : a$13) in ((y : a$13), (x : a$6)); }
+  : (a$6, a$13) -> (a$13, a$6)
 
   $ GenExpr << "EOF"
   > {\match (x : a, y : a) -> (y, x)}
@@ -49,8 +49,8 @@ refer to the same type
   $ GenExpr << "EOF"
   > {\(x : a) (y : b) -> (x, y : a)}
   > EOF
-  \($0 : b$6) -> \($1 : b$6) -> let (y : b$6) = ($1 : b$6) in let (x : b$6) = ($0 : b$6) in ((x : b$6), (y : b$6))
-  : b$6 -> b$6 -> (b$6, b$6)
+  \($0 : b$7) -> \($1 : b$7) -> let (y : b$7) = ($1 : b$7) in let (x : b$7) = ($0 : b$7) in ((x : b$7), (y : b$7))
+  : b$7 -> b$7 -> (b$7, b$7)
 
 Not all expression contexts are allowed to bind fresh type variables
 (See discussion on let bindings in generalize.t)

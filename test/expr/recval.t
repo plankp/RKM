@@ -11,11 +11,11 @@ This is clearly allowed
   $ GenExpr << "EOF"
   > {let rec loop x = loop x in loop ()}
   > EOF
-  let rec { (loop : (\$5. (\$3. $5 -> $3))) = \($0 : $5) -> let (x : $5) = ($0 : $5) in (loop : $5 -> $3) (x : $5) } in (loop : (\$5. (\$3. $5 -> $3))) (@()) (@$8) ()
-  : $8
+  let rec { (loop : (\$6. (\$7. $6 -> $7))) = \ @$6 -> \ @$7 -> \($0 : $6) -> let (x : $6) = ($0 : $6) in (loop : $6 -> $7) (x : $6) } in (loop : (\$6. (\$7. $6 -> $7))) (@()) (@$10) ()
+  : $10
 
 This is not allowed
   $ GenExpr << "EOF"
   > {let rec x = x in ()}
   > EOF
-  Error: Recursive binding cannot have initializer of this form
+  Error: recursive binding cannot have initializer of this form

@@ -6,7 +6,7 @@
   >  match x = 2 with { _ -> ~*x }
   > }
   > EOF
-  let ((~*)$1 : (\a$1. ref a$1 -> a$1)) = \($0 : ref $10) -> match ($0 : ref $10) with { ref ($1 : $10) -> let (v : $10) = ($1 : $10) in (v : $10); } in let (x$1 : ref Int) = (\($0 : Int) -> (ref ($0 : Int) : ref Int)) 1 in let ((~*) : (\a$1. ref a$1 -> a$1)) = ((~*)$1 : (\a$1. ref a$1 -> a$1)) in let (x : ref Int) = (x$1 : ref Int) in let ($0 : ()) = (x : ref Int).0 = 2 in ((~*) : (\a$1. ref a$1 -> a$1)) (@Int) (x : ref Int)
+  let ((~*)$1 : (\a$6. ref a$6 -> a$6)) = \ @a$6 -> \($0 : ref a$6) -> match ($0 : ref a$6) with { ref ($1 : a$6) -> let (v : a$6) = ($1 : a$6) in (v : a$6); } in let (x$1 : ref Int) = (\($0 : Int) -> (ref ($0 : Int) : ref Int)) 1 in let ((~*) : (\a$6. ref a$6 -> a$6)) = ((~*)$1 : (\a$6. ref a$6 -> a$6)) in let (x : ref Int) = (x$1 : ref Int) in let ($0 : ()) = (x : ref Int).0 = 2 in ((~*) : (\a$6. ref a$6 -> a$6)) (@Int) (x : ref Int)
   : Int
 
   $ GenExpr << "EOF"
@@ -18,7 +18,7 @@
   >  ; ~*x }
   > }
   > EOF
-  let ((~*)$1 : (\a$1. ref a$1 -> a$1)) = \($0 : ref $10) -> match ($0 : ref $10) with { ref ($1 : $10) -> let (v : $10) = ($1 : $10) in (v : $10); } in let (x$1 : ref Int) = (\($0 : Int) -> (ref ($0 : Int) : ref Int)) 1 in let ((~*) : (\a$1. ref a$1 -> a$1)) = ((~*)$1 : (\a$1. ref a$1 -> a$1)) in let (x : ref Int) = (x$1 : ref Int) in let (_ : ()) = (x : ref Int).0 = 2 in ((~*) : (\a$1. ref a$1 -> a$1)) (@Int) (x : ref Int)
+  let ((~*)$1 : (\a$6. ref a$6 -> a$6)) = \ @a$6 -> \($0 : ref a$6) -> match ($0 : ref a$6) with { ref ($1 : a$6) -> let (v : a$6) = ($1 : a$6) in (v : a$6); } in let (x$1 : ref Int) = (\($0 : Int) -> (ref ($0 : Int) : ref Int)) 1 in let ((~*) : (\a$6. ref a$6 -> a$6)) = ((~*)$1 : (\a$6. ref a$6 -> a$6)) in let (x : ref Int) = (x$1 : ref Int) in let (_ : ()) = (x : ref Int).0 = 2 in ((~*) : (\a$6. ref a$6 -> a$6)) (@Int) (x : ref Int)
   : Int
 
 An empty sequence is just unit (as if it was an empty pair parenthesis)
@@ -59,5 +59,5 @@ Just a few more to make sure it's emitting the correct stuff
   >  ; ~*x }
   > }
   > EOF
-  let ((~*)$1 : (\$6. ref $6 -> $6)) = \($0 : ref $6) -> match ($0 : ref $6) with { ref ($1 : $6) -> let (v : $6) = ($1 : $6) in (v : $6); } in let (x$1 : ref ([String])) = (\($0 : [String]) -> (ref ($0 : [String]) : ref ([String]))) ([] : [String]) in let ((~*) : (\$6. ref $6 -> $6)) = ((~*)$1 : (\$6. ref $6 -> $6)) in let (x : ref ([String])) = (x$1 : ref ([String])) in let (_ : ()) = (x : ref ([String])).0 = ((::) "e" (((~*) : (\$6. ref $6 -> $6)) (@[String]) (x : ref ([String]))) : [String]) in let (_ : ()) = let (_ : ()) = (x : ref ([String])).0 = ((::) "d" (((~*) : (\$6. ref $6 -> $6)) (@[String]) (x : ref ([String]))) : [String]) in let (_ : ()) = (x : ref ([String])).0 = ((::) "c" (((~*) : (\$6. ref $6 -> $6)) (@[String]) (x : ref ([String]))) : [String]) in (x : ref ([String])).0 = ((::) "b" (((~*) : (\$6. ref $6 -> $6)) (@[String]) (x : ref ([String]))) : [String]) in let (_ : ()) = (x : ref ([String])).0 = ((::) "a" (((~*) : (\$6. ref $6 -> $6)) (@[String]) (x : ref ([String]))) : [String]) in ((~*) : (\$6. ref $6 -> $6)) (@[String]) (x : ref ([String]))
+  let ((~*)$1 : (\$12. ref $12 -> $12)) = \ @$12 -> \($0 : ref $12) -> match ($0 : ref $12) with { ref ($1 : $12) -> let (v : $12) = ($1 : $12) in (v : $12); } in let (x$1 : ref ([String])) = (\($0 : [String]) -> (ref ($0 : [String]) : ref ([String]))) ([] : [String]) in let ((~*) : (\$12. ref $12 -> $12)) = ((~*)$1 : (\$12. ref $12 -> $12)) in let (x : ref ([String])) = (x$1 : ref ([String])) in let (_ : ()) = (x : ref ([String])).0 = ((::) "e" (((~*) : (\$12. ref $12 -> $12)) (@[String]) (x : ref ([String]))) : [String]) in let (_ : ()) = let (_ : ()) = (x : ref ([String])).0 = ((::) "d" (((~*) : (\$12. ref $12 -> $12)) (@[String]) (x : ref ([String]))) : [String]) in let (_ : ()) = (x : ref ([String])).0 = ((::) "c" (((~*) : (\$12. ref $12 -> $12)) (@[String]) (x : ref ([String]))) : [String]) in (x : ref ([String])).0 = ((::) "b" (((~*) : (\$12. ref $12 -> $12)) (@[String]) (x : ref ([String]))) : [String]) in let (_ : ()) = (x : ref ([String])).0 = ((::) "a" (((~*) : (\$12. ref $12 -> $12)) (@[String]) (x : ref ([String]))) : [String]) in ((~*) : (\$12. ref $12 -> $12)) (@[String]) (x : ref ([String]))
   : [String]

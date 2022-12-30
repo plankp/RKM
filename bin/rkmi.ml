@@ -66,7 +66,7 @@ let proc_toplevel verbose venv = function
           match lookup_extf n with
             | None -> Error ("unknown external function " ^ n)
             | Some v ->
-              loop (Eval.augment_env next_venv ((k, 0L), t) v) xs in
+              loop (Eval.augment_env next_venv ((k, Z.zero), t) v) xs in
     loop venv (StrMap.to_seq m)
   end
   | EvalExpr (e, t) -> begin
@@ -94,7 +94,7 @@ let rec cont_eval_prog verbose tctx venv = function
               | Ok venv -> loop venv xs
               | Error e ->
                 printf "Error: %s\nEnvironment resetted\n" e;
-                repl_loop core_tctx Eval.core_venv in
+                repl_loop core_context Eval.core_venv in
         loop venv seq
 
 and repl_loop tctx venv =
@@ -135,9 +135,8 @@ and repl_loop tctx venv =
                 match visit_top_expr tctx ast with
                   | Error e ->
                     List.iter (printf "Error: %s\n") e
-                  | Ok (ast, t, tctx) ->
-                    let (ast, _) = Expr.expand_type tctx.subst ast in
-                    printf "%a\n: %a\n" Expr.output ast Type.output t in
+                  | Ok (ast, t, _) ->
+                    printf "%a\n: %a\n" Core.output ast Type.output t in
             repl_loop tctx venv
           | ":tctors" ->
             let iterf n (_, k) = printf "%s : %a\n" n Type.output k in
@@ -145,7 +144,7 @@ and repl_loop tctx venv =
             repl_loop tctx venv
           | ":reset" ->
             printf "Environment resetted\n";
-            repl_loop core_tctx Eval.core_venv
+            repl_loop core_context Eval.core_venv
           | ":load" ->
             begin
               try
@@ -170,4 +169,4 @@ and repl_loop tctx venv =
         cont_eval_prog true tctx venv result
 
 let () =
-  repl_loop core_tctx Eval.core_venv
+  repl_loop core_context Eval.core_venv

@@ -1,81 +1,99 @@
 module StrMap = Map.Make (String)
 module V = VarInfo
+module T = Type
+module S = Solver
+module C = Core
 
-type tkmap = (Type.t * Type.t) StrMap.t
+type tkmap = (T.t * T.t) StrMap.t
 
-type tctx = {
-  id : Int64.t;
+type context = {
+  id : Z.t;
   tctors : tkmap;
-  dctors : Type.variant StrMap.t;
+  dctors : T.variant StrMap.t;
   tvenv : tkmap list;
-  idenv : Type.t StrMap.t list;
-  rules : (Type.t * Type.t) list;
-  subst : Type.t V.Map.t;
+  idenv : T.t StrMap.t list;
+
+  fixed_tvars : V.Set.t;
 }
 
 type toplevel_analysis =
-  | EvalExpr of Expr.expr * Type.t
+  | EvalExpr of Core.expr * T.t
   | AddTypes of tkmap
-  | AddGlobl of (Expr.name * Expr.expr) list
-  | AddExtern of (Type.t * string) StrMap.t
+  | AddGlobl of (Core.name * Core.expr) list
+  | AddExtern of (T.t * string) StrMap.t
 
 let map_of_list (list : (string * 'a) list) =
   list |> List.to_seq |> StrMap.of_seq
 
-let core_tctx : tctx = {
-  id = 0L;
+let core_context : context = {
+  id = Z.zero;
 
   tctors = map_of_list ([
     "(->)", (TCons (TCtorArr, []), TArr (TKind, TArr (TKind, TKind)));
-    "[]", (TCons (TCtorVar Type.varList, []), TArr (TKind, TKind));
-    "ref", (TCons (TCtorVar Type.varRef, []), TArr (TKind, TKind));
+    "[]", (TCons (TCtorVar T.varList, []), TArr (TKind, TKind));
+    "ref", (TCons (TCtorVar T.varRef, []), TArr (TKind, TKind));
     "Char", (TChr, TKind);
     "String", (TStr, TKind);
     "Int", (TInt, TKind);
-    "Bool", (Type.tyBool, TKind);
-  ] : (string * (Type.t * Type.t)) list);
+    "Bool", (T.tyBool, TKind);
+  ] : (string * (T.t * T.t)) list);
 
   dctors = map_of_list [
-    "True", Type.varBool;
-    "False", Type.varBool;
-    "ref", Type.varRef;
-    "(::)", Type.varList;
+    "True", T.varBool;
+    "False", T.varBool;
+    "ref", T.varRef;
+    "(::)", T.varList;
   ];
 
   idenv = [];
   tvenv = [];
-  rules = [];
-  subst = V.Map.empty;
+
+  fixed_tvars = V.Set.empty;
 }
 
-let free_ctx (tctx : tctx) : V.Set.t * tctx =
-  let fold_id _ t (fv, subst) =
-    let (t, subst) = Type.expand subst t in
-    (Type.free_vars ~acc:fv t, subst) in
-  let fold_tv _ (t, _) (fv, subst) =
-    let (t, subst) = Type.expand subst t in
-    (Type.free_vars ~acc:fv t, subst) in
-  let foldf_list hof list init =
-    let foldf init m = StrMap.fold hof m init in
-    List.fold_left foldf init list in
+let ( let* ) = Result.bind
 
-  let fv = V.Set.empty in
-  let subst = tctx.subst in
-  let (fv, subst) = foldf_list fold_id tctx.idenv (fv, subst) in
-  let (fv, subst) = foldf_list fold_tv tctx.tvenv (fv, subst) in
-  (fv, { tctx with subst })
+let merge_map m overwrite =
+  StrMap.fold StrMap.add overwrite m
 
-let unify_ctx (tctx : tctx) =
-  let (subst, errors) = Type.unify tctx.subst tctx.rules in
-  let tctx = { tctx with subst; rules = [] } in
-  match errors with
-    | [] -> (Ok (), tctx)
-    | _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
+let mk_name (ctx : context) (name : string) : (V.t * context) =
+  let id = Z.succ ctx.id in
+  ((name, ctx.id), { ctx with id })
 
-let ( let< ) o f =
-  match o with
-    | (Error e, tctx) -> (Error e, tctx)
-    | (Ok v, tctx) -> f (v, tctx)
+let mk_tvar (ctx : context) (name : string) : (T.t * context) =
+  let (n, ctx) = mk_name ctx name in
+  (T.TVar (n, ref None), ctx)
+
+let inst (ctx : context) (t : T.t) : (T.t list * T.t * context) =
+  let rec loop qs m ctx = function
+    | T.TQuant ((n, id), t) ->
+      let (new_tv, ctx) = mk_tvar ctx n in
+      loop (new_tv :: qs) (V.Map.add (n, id) new_tv m) ctx t
+    | t -> (List.rev qs, T.eval m V.Set.empty t, ctx) in
+  loop [] V.Map.empty ctx t
+
+let gen (ctx : context) (qs : T.tvinfo list) =
+  let foldf (qs, ctx) ((n, _), r) =
+    let (new_name, ctx) = mk_name ctx n in
+    r := Some (T.TRigid new_name);
+    (new_name :: qs, ctx) in
+  List.fold_left foldf ([], ctx) qs
+
+let free_ctx (ctx : context) : V.Set.t =
+  (* need to collect from both idenv and the tvenv *)
+  let rec collect_tvenv acc = function
+    | [] -> acc
+    | x :: xs ->
+      let foldf _ (t, _) acc = T.free_tvars ~acc t in
+      collect_tvenv (StrMap.fold foldf x acc) xs in
+
+  let rec collect_idenv acc = function
+    | [] -> collect_tvenv acc ctx.tvenv
+    | x :: xs ->
+      let foldf _ t acc = T.free_tvars ~acc t in
+      collect_idenv (StrMap.fold foldf x acc) xs in
+
+  collect_idenv V.Set.empty ctx.idenv
 
 let lookup_env (name : string) (env : 'a StrMap.t list) =
   let rec loop = function
@@ -86,305 +104,235 @@ let lookup_env (name : string) (env : 'a StrMap.t list) =
         | Some v -> Some v in
   loop env
 
-let instantiate (tctx : tctx) (t : Type.t) =
-  let rec loop tctx acc map = function
-    | Type.TQuant (q, t) ->
-      let fresh = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      loop tctx (fresh :: acc) (V.Map.add q fresh map) t
-    | t ->
-      let t =
-        if V.Map.is_empty map then t
-        else Type.eval map V.Set.empty t in
-      (t, List.rev acc, tctx) in
-  loop tctx [] V.Map.empty t
-
-let merge_errors (results : ('a, 'b list) result list) : 'b list =
-  let rec loop acc = function
-    | [] -> List.rev acc
-    | [Error lst] -> List.rev_append acc lst
-    | Error lst :: xs -> loop (List.rev_append lst acc) xs
-    | _ :: xs -> loop acc xs in
-  loop [] results
-
-let visit_ast_type (allow_ign : bool) (next : tkmap option) (tctx : tctx) (ast : Ast.ast_typ) =
-  let rec visit next tctx = function
+let visit_ast_type (allow_ign : bool) (next : tkmap option) (ctx : context) (ast : Ast.ast_typ) =
+  let rec visit next ctx = function
     | Ast.TypeIgn ->
       if allow_ign then
-        let ty = Type.TVar ("_", tctx.id)
-        and kind = Type.TVar ("", tctx.id)
-        and tctx = { tctx with id = Int64.succ tctx.id } in
-        (Ok (ty, kind), next, tctx)
-      else (Error ["unnamed type not allowed in this context"], next, tctx)
+        let (ty, ctx) = mk_tvar ctx "_" in
+        let (kind, ctx) = mk_tvar ctx "" in
+        Ok (ty, kind, S.merge_cnst [], next, ctx)
+      else Error ["unnamed type not allowed in this context"]
     | Ast.TypeVar n -> begin
       let tvenv = match next with
-        | Some m -> m :: tctx.tvenv
-        | None -> tctx.tvenv in
+        | Some m -> m :: ctx.tvenv
+        | None -> ctx.tvenv in
       match lookup_env n tvenv with
-        | Some (ty, kind) -> (Ok (ty, kind), next, tctx)
+        | Some (ty, kind) -> Ok (ty, kind, S.merge_cnst [], next, ctx)
         | None ->
           match next with
-            | None -> (Error ["unknown type variable named " ^ n], next, tctx)
+            | None -> Error ["unknown type variable named " ^ n]
             | Some m ->
-              let ty = Type.TVar (n, tctx.id)
-              and kind = Type.TVar ("", tctx.id)
-              and tctx = { tctx with id = Int64.succ tctx.id } in
-              (Ok (ty, kind), Some (StrMap.add n (ty, kind) m), tctx)
+              let (ty, ctx) = mk_tvar ctx n in
+              let (kind, ctx) = mk_tvar ctx "" in
+              Ok (ty, kind, S.merge_cnst [], Some (StrMap.add n (ty, kind) m), ctx)
     end
     | Ast.TypeCtor n -> begin
-      match StrMap.find_opt n tctx.tctors with
-        | None -> (Error ["unknown type constructor named " ^ n], next, tctx)
+      match StrMap.find_opt n ctx.tctors with
+        | None -> Error ["unknown type constructor named " ^ n]
         | Some (ty, kind) ->
-          let (kind, _, tctx) = instantiate tctx kind in
-          (Ok (ty, kind), next, tctx)
+          let (_, kind, ctx) = inst ctx kind in
+          Ok (ty, kind, S.merge_cnst [], next, ctx)
     end
-    | Ast.TypeApp (p, q) -> begin
-      let (p, next, tctx) = visit next tctx p in
-      let (q, next, tctx) = visit next tctx q in
-      match (p, q) with
-        | (Error p, Error q) -> (Error (p @ q), next, tctx)
-        | (Error p, _) | (_, Error p) -> (Error p, next, tctx)
-        | (Ok (p, pkind), Ok (q, qkind)) ->
-          let kind = Type.TVar ("", tctx.id)
-          and tctx = { tctx with id = Int64.succ tctx.id } in
-          let rules = (pkind, Type.TArr (qkind, kind)) :: tctx.rules in
-          (Ok (Type.TApp (p, q), kind), next, { tctx with rules })
-    end
-    | Ast.TypeTup xs -> begin
-      let rec loop acc next tctx = function
+    | Ast.TypeApp (p, q) ->
+      let* (p, pkind, f1, next, ctx) = visit next ctx p in
+      let* (q, qkind, f2, next, ctx) = visit next ctx q in
+      let (kind, ctx) = mk_tvar ctx "" in
+      let f3 = S.CnstEq (V.Set.empty, pkind, T.TArr (qkind, kind)) in
+      Ok (T.TApp (p, q), kind, S.merge_cnst [f1; f2; f3], next, ctx)
+    | Ast.TypeTup xs ->
+      let rec loop elts rules next ctx = function
         | [] ->
-          let mapf xs = (Type.TTup (List.rev xs), Type.TKind) in
-          (Result.map mapf acc, next, tctx)
+          Ok (T.TTup (List.rev elts), T.TKind, S.merge_cnst rules, next, ctx)
         | x :: xs ->
-          let (x, next, tctx) = visit next tctx x in
-          match (acc, x) with
-            | (Error p, Error q) -> loop (Error (p @ q)) next tctx xs
-            | (Error p, _) | (_, Error p) -> loop (Error p) next tctx xs
-            | (Ok acc, Ok (x, xkind)) ->
-              let rules = (xkind, Type.TKind) :: tctx.rules in
-              loop (Ok (x :: acc)) next { tctx with rules } xs in
-      loop (Ok []) next tctx xs
-    end in
+          let* (x, xkind, f, next, ctx) = visit next ctx x in
+          let rules = S.CnstEq (V.Set.empty, xkind, T.TKind) :: f :: rules in
+          loop (x :: elts) rules next ctx xs in
+      loop [] [] next ctx xs in
 
-  match visit next tctx ast with
-    | (Ok (ty, kind), next, tctx) ->
-      let ty = Type.normalize ty in
-      if Type.contains_quant ty then
-        (Error ["unsaturated type aliases are not allowed"], tctx)
-      else (Ok (ty, kind, next), tctx)
-    | (Error e, _, tctx) -> (Error e, tctx)
+  let* (ty, kind, f, next, ctx) = visit next ctx ast in
+  let ty = Type.normalize ty in
+  if Type.contains_quant ty then Error ["unsaturated type aliases are not allowed"]
+  else Ok (ty, kind, f, next, ctx)
 
-let collect_decl_tvs (tctx : tctx) (tvargs : string list) =
-  let rec loop map acc errors tctx = function
+let collect_decl_tvs (ctx : context) (tvargs : string list) =
+  let rec loop map acc errors ctx = function
     | [] ->
-      if errors = [] then (Ok (map, List.rev acc), tctx)
-      else (Error (List.rev errors), tctx)
+      if errors = [] then Ok (map, List.rev acc, ctx)
+      else Error (List.rev errors)
     | x :: xs ->
-      let name = (x, 0L) in
-      let kind = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
+      let (name, ctx) = mk_name ctx x in
+      let (kind, ctx) = mk_tvar ctx "" in
       let updatef = function
         | None -> Some (Type.TRigid name, kind)
         | t -> t in
       let next = StrMap.update x updatef map in
       if next == map then
-        loop next acc (("duplicate type variable " ^ x) :: errors) tctx xs
-      else loop next ((name, kind) :: acc) errors tctx xs in
-  loop StrMap.empty [] [] tctx tvargs
+        loop next acc (("duplicate type variable " ^ x) :: errors) ctx xs
+      else loop next ((name, kind) :: acc) errors ctx xs in
+  loop StrMap.empty [] [] ctx tvargs
 
-let visit_alias (tctx : tctx) ((n, args, t) : Ast.ast_alias) =
-  if tctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
-  if tctx.rules <> [] then failwith "RULES NOT EMPTY?";
+let visit_alias (ctx : context) ((n, args, t) : Ast.ast_alias) =
+  if ctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
 
-  match collect_decl_tvs tctx args with
-    | (Error e, _) -> Error e
-    | (Ok (map, args), tctx) ->
-      let open Type in
-      let tctx = { tctx with tvenv = [map] } in
-      match visit_ast_type false None tctx t with
-        | (Error e, _) -> Error e
-        | (Ok (t, k, _), tctx) ->
-          match unify_ctx { tctx with tvenv = [] } with
-            | (Error e, _) -> Error e
-            | (Ok (), tctx) ->
-              let (k, subst) = expand tctx.subst k in
-              let foldf (q, qk) (t, k, subst) =
-                let (qk, subst) = expand subst qk in
-                (TQuant (q, t), TArr (qk, k), subst) in
-              let (t, k, subst) = List.fold_right foldf args (t, k, subst) in
-              let (qs, k) = gen V.Set.empty k in
-              let k = List.fold_right (fun q k -> TQuant (q, k)) qs k in
-              Ok (n, t, k, { tctx with subst })
+  let open Type in
+  let* (map, args, ctx) = collect_decl_tvs ctx args in
+  let ctx = { ctx with tvenv = [map] } in
+  let* (t, k, f, _, ctx) = visit_ast_type false None ctx t in
+  let ctx = { ctx with tvenv = [] } in
+  match S.solve [f] with
+    | Error e -> Error (List.map S.explain e)
+    | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+    | Ok [] ->
+      let k = T.normalize k in
+      let foldf (q, qk) (t, k) =
+        let qk = T.normalize qk in
+        (TQuant (q, t), TArr (qk, k)) in
+      let (t, k) = List.fold_right foldf args (t, k) in
+      let qs = T.collect_free_tvars k in
+      let (qs, ctx) = gen ctx qs in
+      let k = List.fold_left (fun k q -> T.TQuant (q, k)) k qs in
+      Ok (n, t, k, ctx)
 
-let merge_map m overwrite =
-  StrMap.fold StrMap.add overwrite m
-
-let visit_top_alias (tctx : tctx) (defs : Ast.ast_alias list) =
-  let rec loop map errors tctx = function
+let visit_top_alias (ctx : context) (defs : Ast.ast_alias list) =
+  let rec loop map errors ctx = function
     | [] ->
       if errors = [] then
-        let tctors = merge_map tctx.tctors map in
-        Ok (map, { tctx with tctors })
+        let tctors = merge_map ctx.tctors map in
+        Ok (map, { ctx with tctors })
       else Error (List.rev errors)
     | x :: xs ->
-      match visit_alias tctx x with
-        | Error e -> Error e
-        | Ok (n, t, k, tctx) ->
-          let updatef = function
-            | None -> Some (t, k)
-            | t -> t in
-          let next = StrMap.update n updatef map in
-          if next == map then
-            loop next (("duplicate type alias " ^ n) :: errors) tctx xs
-          else loop next errors tctx xs in
-  loop StrMap.empty [] tctx defs
+      let* (n, t, k, ctx) = visit_alias ctx x in
+      let updatef = function
+        | None -> Some (t, k)
+        | t -> t in
+      let next = StrMap.update n updatef map in
+      if next == map then
+        loop next (("duplicate type alias " ^ n) :: errors) ctx xs
+      else loop next errors ctx xs in
+  loop StrMap.empty [] ctx defs
 
-let gen_tuple_shape tctx elts =
-  let rec loop acc tctx = function
-    | [] -> (List.rev acc, tctx)
+let gen_tuple_shape ctx elts =
+  let rec loop acc ctx = function
+    | [] -> (List.rev acc, ctx)
     | _ :: xs ->
-      let ty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      loop (ty :: acc) tctx xs in
-  loop [] tctx elts
+      let (ty, ctx) = mk_tvar ctx "" in
+      loop (ty :: acc) ctx xs in
+  loop [] ctx elts
 
-let lookup_dctor n ty tctx =
-  let (subst, errors) = Type.unify tctx.subst tctx.rules in
-  let tctx = { tctx with subst; rules = [] } in
-  match errors with
-    | _ :: _ -> (Error (List.map (Type.explain ~env:(Some subst)) errors), tctx)
-    | [] ->
-      let (ty, subst) = Type.shallow_subst tctx.subst ty in
-      let tctx = { tctx with subst } in
-      let (ctor, ty, tctx) = match Type.normalize ty with
-        | TCons (TCtorVar v, args) -> (Type.inst_case v n args, ty, tctx)
+let lookup_dctor n ty rules ctx =
+  (* eagarly solve constraints *)
+  match S.solve rules with
+    | Error e -> Error (List.map S.explain e)
+    | Ok rules ->
+      let ty = T.normalize ty in
+      let (ctor, ty, ctx) = match ty with
+        | TCons (TCtorVar v, args) -> (T.inst_case v n args, ty, ctx)
         | _ ->
-          match StrMap.find_opt n tctx.dctors with
-            | None -> (None, ty, tctx)
+          match StrMap.find_opt n ctx.dctors with
+            | None -> (None, ty, ctx)
             | Some v ->
-              let foldf (acc, tctx) _ =
-                let fresh = Type.TVar ("", tctx.id)
-                and tctx = { tctx with id = Int64.succ tctx.id } in
-                (fresh :: acc, tctx) in
-              let (args, tctx) = List.fold_left foldf ([], tctx) v.quants in
+              let foldf (acc, ctx) _ =
+                let (fresh, ctx) = mk_tvar ctx "" in
+                (fresh :: acc, ctx) in
+              let (args, ctx) = List.fold_left foldf ([], ctx) v.quants in
               let args = List.rev args in
-              (Type.inst_case v n args, Type.TCons (TCtorVar v, args), tctx) in
+              (T.inst_case v n args, T.TCons (TCtorVar v, args), ctx) in
       match ctor with
-        | None -> (Error ["unknown data constructor named " ^ n], tctx)
-        | Some ctor -> (Ok (ctor, ty), tctx)
+        | None -> Error ["unknown data constructor named " ^ n]
+        | Some ctor -> Ok (ctor, ty, rules, ctx)
 
-let visit_pat (ty : Type.t) (next : tkmap) (tctx : tctx) (ast : Ast.ast_pat) =
-  let rec visit captures next ty tctx = function
-    | Ast.Cap None ->
-      (Ok (Ast.Cap None, captures), next, tctx)
-    | Ast.Cap (Some n) -> begin
+let visit_pat (ty : T.t) (rules : S.cnst list) (next : tkmap) (ctx : context) (ast : Ast.ast_pat) =
+  let rec visit captures next ty rules ctx = function
+    | Ast.Cap None as p ->
+      Ok (p, rules, captures, next, ctx)
+    | Ast.Cap (Some n) as p -> begin
       match StrMap.find_opt n captures with
-        | Some _ -> (Error ["repeated capture of " ^ n], next, tctx)
-        | None -> (Ok (Ast.Cap (Some n), StrMap.add n ty captures), next, tctx)
+        | Some _ -> Error ["repeated capture of " ^ n]
+        | None -> Ok (p, rules, StrMap.add n ty captures, next, ctx)
     end
-    | Ast.Match lit as t -> begin
+
+    | Ast.Match lit as p ->
       let resty = match lit with
         | LitInt _ -> Type.TInt
         | LitStr _ -> Type.TStr
         | LitChar _ -> Type.TChr in
-      let rules = (ty, resty) :: tctx.rules in
-      (Ok (t, captures), next, { tctx with rules })
-    end
-    | Ast.Decons (k, ys) -> begin
-      let (ctor_info, tctx) = lookup_dctor k ty tctx in
-      match ctor_info with
-        | Error e -> (Error e, next, tctx)
-        | Ok (xs, resty) ->
-          let rec loop acc captures next tctx = function
-            | ([], []) ->
-              let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
-              (Ok (Ast.Decons (k, List.rev acc), captures), next, tctx)
-            | (x :: xs, y :: ys) -> begin
-              match visit captures next x tctx y with
-                | (Ok (p, captures), next, tctx) ->
-                  loop (p :: acc) captures next tctx (xs, ys)
-                | error -> error
-            end
-            | _ -> (Error ["data constructor arity mismatch"], next, tctx) in
-          loop [] captures next tctx (xs, ys)
-    end
-    | Ast.Detup xs ->
-      let (shape, tctx) = gen_tuple_shape tctx xs in
-      let tctx = { tctx with rules = (ty, TTup shape) :: tctx.rules } in
+      Ok (p, S.CnstEq (ctx.fixed_tvars, ty, resty) :: rules, captures, next, ctx)
 
-      (* then trickle type information (if present) down to each element *)
-      let rec loop acc captures next tctx = function
-        | ([], []) -> (Ok (Ast.Detup (List.rev acc), captures), next, tctx)
-        | (x :: xs, y :: ys) -> begin
-          match visit captures next x tctx y with
-            | (Ok (p, captures), next, tctx) ->
-              loop (p :: acc) captures next tctx (xs, ys)
-            | error -> error
-        end
+    | Ast.Decons (k, ys) ->
+      let* (xs, resty, rules, ctx) = lookup_dctor k ty rules ctx in
+      let rec loop acc rules captures next ctx = function
+        | ([], []) ->
+          let rules = S.CnstEq (ctx.fixed_tvars, ty, resty) :: rules in
+          Ok (Ast.Decons (k, List.rev acc), rules, captures, next, ctx)
+        | (x :: xs, y :: ys) ->
+          let* (p, rules, captures, next, ctx) = visit captures next x rules ctx y in
+          loop (p :: acc) rules captures next ctx (xs, ys)
+        | _ -> Error ["data constructor arity mismatch"] in
+      loop [] rules captures next ctx (xs, ys)
+
+    | Ast.Detup xs ->
+      let rec loop acc rules captures next ctx = function
+        | ([], []) -> Ok (Ast.Detup (List.rev acc), rules, captures, next, ctx)
+        | (x :: xs, y :: ys) ->
+          let* (p, rules, captures, next, ctx) =
+            visit captures next x rules ctx y in
+          loop (p :: acc) rules captures next ctx (xs, ys)
         | _ -> failwith "IMPOSSIBLE DIMENSION MISMATCH" in
-      loop [] captures next tctx (shape, xs)
+
+      let (shape, ctx) = gen_tuple_shape ctx xs in
+      let rules = S.CnstEq (ctx.fixed_tvars, ty, TTup shape) :: rules in
+      loop [] rules captures next ctx (shape, xs)
+
     | Ast.Delist xs ->
-      let ety = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let tctx = { tctx with rules = (ty, Type.tyList ety) :: tctx.rules } in
-      let rec loop acc captures next tctx = function
+      let (ety, ctx) = mk_tvar ctx "" in
+      let rec loop acc rules captures next ctx = function
         | [] ->
           let p = Ast.Decons ("[]", []) in
           let p = List.fold_left (fun xs x -> Ast.Decons ("(::)", [x; xs])) p acc in
-          (Ok (p, captures), next, tctx)
+          Ok (p, rules, captures, next, ctx)
         | x :: xs ->
-          match visit captures next ety tctx x with
-            | (Ok (p, captures), next, tctx) ->
-              loop (p :: acc) captures next tctx xs
-            | error -> error in
-      loop [] captures next tctx xs
-    | Ast.Alternate (p, q) -> begin
+          let* (p, rules, captures, next, ctx) =
+            visit captures next ety rules ctx x in
+          loop (p :: acc) rules captures next ctx xs in
+      let rules = S.CnstEq (ctx.fixed_tvars, ty, T.tyList ety) :: rules in
+      loop [] rules captures next ctx xs
+
+    | Ast.Alternate (p, q) ->
       (* need to make sure both subpats capture the same things *)
-      let (p, next, tctx) = visit StrMap.empty next ty tctx p in
-      let (q, next, tctx) = visit StrMap.empty next ty tctx q in
-      match (p, q) with
-        | (Ok (p, pcap), Ok (q, qcap)) -> begin
-          let rec loop pkv qcap captures tctx =
-            match pkv () with
-              | Seq.Nil -> begin
-                match StrMap.choose_opt qcap with
-                  | None -> (Ok (Ast.Alternate (p, q), captures), next, tctx)
-                  | Some (cap, _) ->
-                    (Error ["binding " ^ cap ^ " is only captured on one branch"], next, tctx)
-              end
-              | Seq.Cons ((cap, ty1), tl) ->
-                match StrMap.find_opt cap qcap with
+      let* (p, rules, pcap, next, ctx) = visit StrMap.empty next ty rules ctx p in
+      let* (q, rules, qcap, next, ctx) = visit StrMap.empty next ty rules ctx q in
+      let rec loop pkv qcap captures rules ctx =
+        match pkv () with
+          | Seq.Nil -> begin
+            match StrMap.choose_opt qcap with
+              | None -> Ok (Ast.Alternate (p, q), rules, captures, next, ctx)
+              | Some (cap, _) -> Error ["binding " ^ cap ^ " is only captured on one branch"]
+          end
+          | Seq.Cons ((cap, ty1), tl) ->
+            match StrMap.find_opt cap qcap with
+              | None -> Error ["binding " ^ cap ^ " is only captured on one branch"]
+              | Some ty2 ->
+                match StrMap.find_opt cap captures with
+                  | Some _ -> Error ["repeated capture of " ^ cap]
                   | None ->
-                    (Error ["binding " ^ cap ^ " is only captured on one branch"], next, tctx)
-                  | Some ty2 ->
-                    match StrMap.find_opt cap captures with
-                      | Some _ -> (Error ["repeated capture of " ^ cap], next, tctx)
-                      | None ->
-                        let rules = (ty1, ty2) :: tctx.rules in
-                        loop tl
-                          (StrMap.remove cap qcap)
-                          (StrMap.add cap ty1 captures)
-                          { tctx with rules } in
-          loop (StrMap.to_seq pcap) qcap captures tctx
-        end
-        | _ -> (Error (merge_errors [p; q]), next, tctx)
-    end
-    | Ast.PatternTyped (p, annot) -> begin
-      (* solve the type first to help resolve ambiguous data constructors *)
-      let (annot, tctx) = visit_ast_type true (Some next) tctx annot in
-      match annot with
-        | Error p -> (Error p, next, tctx)
-        | Ok (_, _, None) -> failwith "IMPOSSIBLE NO NEXT TVENV RETURNED"
-        | Ok (annotty, kind, Some next) ->
-          let rules = (kind, Type.TKind) :: (annotty, ty) :: tctx.rules in
-          visit captures next ty { tctx with rules } p
-    end in
+                    let rules = S.CnstEq (ctx.fixed_tvars, ty1, ty2) :: rules in
+                    let qcap = StrMap.remove cap qcap in
+                    let captures = StrMap.add cap ty1 captures in
+                    loop tl qcap captures rules ctx in
+      loop (StrMap.to_seq pcap) qcap captures rules ctx
 
-  match visit StrMap.empty next ty tctx ast with
-    | (Error e, _, tctx) -> (Error e, tctx)
-    | (Ok (p, captures), next, tctx) -> (Ok (p, captures, next), tctx)
+    | Ast.PatternTyped (p, annot) ->
+      let* (annot, kind, f, q, ctx) = visit_ast_type true (Some next) ctx annot in
+      let next = Option.get q in
+      let rules = f
+        :: S.CnstEq (V.Set.empty, kind, T.TKind)
+        :: S.CnstEq (ctx.fixed_tvars, annot, ty)
+        :: rules in
+      visit captures next ty rules ctx p in
 
-let organize_vdefs (vdefs : Ast.ast_vdef list) =
+  visit StrMap.empty next ty rules ctx ast
+
+let rec organize_vdefs (vdefs : Ast.ast_vdef list) =
   let rec order m acc = function
     | [] ->
       (* anything left only has type annotation so order does not matter, but
@@ -426,27 +374,25 @@ let organize_vdefs (vdefs : Ast.ast_vdef list) =
     end in
   collect StrMap.empty vdefs
 
-let rec visit_cases sty ety tctx cases =
-  let rec loop acc tctx = function
-    | [] -> (Ok (List.rev acc), tctx)
+and visit_cases sty rules ety ctx cases =
+  let rec loop acc rules ctx = function
+    | [] -> Ok (List.rev acc, rules, ctx)
     | (p, e) :: xs ->
-      let< ((p, new_ids, new_tvs), tctx) = visit_pat sty StrMap.empty tctx p in
-      let tctx = { tctx with
-        idenv = new_ids :: tctx.idenv;
-        tvenv = new_tvs :: tctx.tvenv } in
-      let (e, tctx) = visit_expr ety tctx e in
-      let tctx = { tctx with
-        idenv = List.tl tctx.idenv;
-        tvenv = List.tl tctx.tvenv } in
-      let< (e, tctx) = (e, tctx) in
-      loop ((p, e) :: acc) tctx xs in
-  loop [] tctx cases
+      let* (p, rules, new_ids, new_tvs, ctx) =
+        visit_pat sty rules StrMap.empty ctx p in
+      let ctx = { ctx with
+        idenv = new_ids :: ctx.idenv;
+        tvenv = new_tvs :: ctx.tvenv } in
+      let* (e, rules, ctx) = visit_expr ety rules ctx e in
+      let ctx = { ctx with
+        idenv = List.tl ctx.idenv;
+        tvenv = List.tl ctx.tvenv } in
+      loop ((p, e) :: acc) rules ctx xs in
+  loop [] rules ctx cases
 
-and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list) =
-  let sty = Type.TVar ("", tctx.id)
-  and tctx = { tctx with id = Int64.succ tctx.id } in
-  let ety = Type.TVar ("", tctx.id)
-  and tctx = { tctx with id = Int64.succ tctx.id } in
+and visit_generalized_lam ty rules ctx (mat : (Ast.ast_pat list * Ast.ast_expr) list) =
+  let (sty, ctx) = mk_tvar ctx "" in
+  let (ety, ctx) = mk_tvar ctx "" in
 
   (*
    * ordinary lambdas  | lambda cases  | generalized lambdas
@@ -461,415 +407,379 @@ and visit_generalized_lam ty tctx (mat : (Ast.ast_pat list * Ast.ast_expr) list)
   let proj_pack (ps, e) = (Ast.Detup ps, e) in
   let proj_unpack = function
     | (Ast.Detup ps, e) -> (ps, e)
-    | _ -> failwith "IMPOSSIBLE GENERALIZE LAM PATTERN CASE" in
+    | _ -> failwith "IMPOSSIBLE GENERALIZE LAMBDA PATTERN CASE" in
 
   let mat = List.map proj_pack mat in
-  let< (mat, tctx) = visit_cases sty ety tctx mat in
-  let< ((), tctx) = unify_ctx tctx in
-  match Type.expand tctx.subst sty with
-    | (Type.TTup xs, subst) -> begin
-      let t = List.fold_right (fun a e -> Type.TArr (a, e)) xs ety in
-      let rules = (ty, t) :: tctx.rules in
-      let tctx = { tctx with rules; subst } in
+  let* (mat, rules, ctx) = visit_cases sty rules ety ctx mat in
 
-      let foldf (id, acc) ty =
-        let tmp = (("", id), ty) in
-        (Int64.succ id, (tmp, ty) :: acc) in
-      let (id, acc) = List.fold_left foldf (0L, []) xs in
+  (* eagarly solve constraints *)
+  match S.solve rules with
+    | Error e -> Error (List.map S.explain e)
+    | Ok rules ->
+      let sty = T.unwrap sty in
+      match sty with
+        | T.TTup xs ->
+          let t = List.fold_right (fun a e -> T.TArr (a, e)) xs ety in
+          let rules = S.CnstEq (ctx.fixed_tvars, ty, t) :: rules in
 
-      let inputs = List.rev_map (fun (v, ty) -> (Expr.EVar v, ty)) acc in
-      let mat = List.map proj_unpack mat in
-      let e = ConvCase.conv id inputs mat in
-      (Ok (List.fold_left (fun e (v, _) -> Expr.ELam (v, e)) e acc), tctx)
-    end
-    | _ -> failwith "IMPOSSIBLE GENERALIZED LAM PATTERN TYPE"
+          let foldf (id, acc) ty =
+            let tmp = (("", id), ty) in
+            (Z.succ id, (tmp, ty) :: acc) in
+          let (id, acc) = List.fold_left foldf (Z.zero, []) xs in
 
-and visit_vdefs (recur : bool) (tctx : tctx) (vb : Ast.ast_vdef list) =
-  let rec eval_init new_ids ds acc tctx = function
+          let inputs = List.rev_map (fun (v, ty) -> (C.EVar v, ty)) acc in
+          let mat = List.map proj_unpack mat in
+          let e = ConvCase.conv id inputs mat in
+          Ok (List.fold_left (fun e (v, _) -> C.ELam (v, e)) e acc, rules, ctx)
+        | _ -> failwith "IMPOSSIBLE GENERALIZED LAMBDA PATTERN TYPE"
+
+and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.ast_vdef list) =
+  let* vb = organize_vdefs vb in
+  let monos = free_ctx ctx in
+
+  let rec eval_init new_ids ds acc rules ctx = function
     | [] -> begin
-      let generalize monos tctx rbinds =
-        let rec loop new_ids acc tctx = function
-          | [] -> (Ok (new_ids, acc), tctx)
+      let generalize rules ctx rbinds =
+        let no_pending = rules = [] in
+        let rec loop new_ids acc rules ctx = function
+          | [] -> Ok (new_ids, acc, rules, ctx)
           | (n, bty, has_annot, e) :: xs ->
-            if not recur || Expr.is_valid_rec ds e then begin
-              let (bty, subst) = Type.expand tctx.subst bty in
-              let tctx = { tctx with subst } in
-
+            if not recur || Core.is_valid_rec ds e then begin
               let monos =
-                if Expr.is_syntactic_value e then monos
-                else Type.dangerous_vars ~acc:monos bty in
-              let (qs, bty) = Type.gen monos bty in
-              let bty = List.fold_right (fun q t -> Type.TQuant (q, t)) qs bty in
-
-              if has_annot then begin
+                if Core.is_syntactic_value e then monos
+                else T.dangerous_vars ~acc:monos bty in
+              if has_annot then
                 let annot = StrMap.find n new_ids in
-                let (annot, subst) = Type.expand tctx.subst annot in
-                let tctx = { tctx with subst } in
-                if Type.is_general_enough bty annot then
-                  loop (StrMap.add n annot new_ids) ((((n, 0L), annot), e):: acc) tctx xs
-                else (Error ["initializer is not general enough"], tctx)
-              end else
-                loop (StrMap.add n bty new_ids) ((((n, 0L), bty), e) :: acc) tctx xs
-            end else (Error ["Recursive binding cannot have initializer of this form"], tctx) in
-        loop new_ids [] tctx rbinds in
+                let (a, ta) = T.unpeel_quants annot in
+                let rules = S.CnstEq (monos, ta, bty) :: rules in
+                let e = List.fold_left (fun e n -> C.ETyLam (n, e)) e a in
+                loop new_ids ((((n, Z.zero), annot), e) :: acc) rules ctx xs
+              else if no_pending then
+                let qs = T.collect_free_tvars bty in
+                let filterf (n, _) = not @@ V.Set.mem n monos in
+                let (qs, ctx) = gen ctx (List.filter filterf qs) in
+                let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
+                let e = List.fold_left (fun e n -> C.ETyLam (n, e)) e qs in
+                let new_ids = StrMap.add n qt new_ids in
+                loop new_ids ((((n, Z.zero), qt), e) :: acc) rules ctx xs
+              else
+                loop new_ids ((((n, Z.zero), bty), e) :: acc) rules ctx xs
+            end else Error ["recursive binding cannot have initializer of this form"] in
+        loop new_ids [] rules ctx rbinds in
 
-      let< ((), tctx) = unify_ctx tctx in
-      if recur then begin
-        (* need to unshift the bindings when computing the ftv of the ctx *)
-        let tctx = { tctx with idenv = List.tl tctx.idenv } in
-        let (monos, tctx) = free_ctx tctx in
-        let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-        generalize monos tctx acc
-      end else begin
-        let (monos, tctx) = free_ctx tctx in
-        generalize monos tctx acc
-      end
+      match S.solve rules with
+        | Error e -> Error (List.map S.explain e)
+        | Ok rules -> generalize rules ctx acc
     end
     | (n, None, defs) :: xs ->
       let bty = StrMap.find n new_ids in
-      let< (e, tctx) = visit_generalized_lam bty tctx defs in
-      eval_init new_ids (V.Set.add (n, 0L) ds) ((n, bty, false, e) :: acc) tctx xs
+      let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
+      eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, false, e) :: acc) rules ctx xs
     | (n, Some _, defs) :: xs ->
-      let bty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let< (e, tctx) = visit_generalized_lam bty tctx defs in
-      eval_init new_ids (V.Set.add (n, 0L) ds) ((n, bty, true, e) :: acc) tctx xs in
+      let (bty, ctx) = mk_tvar ctx "" in
+      let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
+      eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, true, e) :: acc) rules ctx xs in
 
-  match organize_vdefs vb with
-    | Error e -> (Error e, tctx)
-    | Ok vb ->
-      let rec fill_scope new_ids tctx = function
-        | [] ->
-          if recur then
-            let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-            let (q, tctx) = eval_init new_ids V.Set.empty [] tctx vb in
-            let tctx = { tctx with idenv = List.tl tctx.idenv } in
-            (q, tctx)
-          else eval_init new_ids V.Set.empty [] tctx vb
-        | (n, _, []) :: _ -> (Error ["missing implementation for " ^ n], tctx)
-        | (n, None, _) :: xs ->
-          let bty = Type.TVar ("", tctx.id)
-          and tctx = { tctx with id = Int64.succ tctx.id } in
-          fill_scope (StrMap.add n bty new_ids) tctx xs
-        | (n, Some annot, _) :: xs ->
-          let< ((bty, kind, _), tctx) = visit_ast_type true (Some StrMap.empty) tctx annot in
-          let rules = (kind, Type.TKind) :: tctx.rules in
-          let< ((), tctx) = unify_ctx { tctx with rules } in
-          let (monos, tctx) = free_ctx tctx in
-
-          let (quants, bty) = Type.gen monos bty in
-          let qt = List.fold_right (fun q t -> Type.TQuant (q, t)) quants bty in
-          fill_scope (StrMap.add n qt new_ids) tctx xs in
-    fill_scope StrMap.empty tctx vb
-
-and visit_expr (ty : Type.t) (tctx : tctx) (ast : Ast.ast_expr) =
-  let open Expr in
-  let rec lookup_var n ty tctx errf =
-    match lookup_env n tctx.idenv with
-      | None -> (Error [errf ()], tctx)
-      | Some vty ->
-        let (instty, ts, tctx) = instantiate tctx vty in
-        let rules = (ty, instty) :: tctx.rules in
-        let e = EVar ((n, 0L), vty) in
-        let e = List.fold_left (fun e a -> EApp (e, EType a)) e ts in
-        (Ok e, { tctx with rules })
-
-  and visit ty tctx = function
-    | Ast.Lit lit -> begin
-      let resty = match lit with
-        | LitInt _ -> Type.TInt
-        | LitStr _ -> Type.TStr
-        | LitChar _ -> Type.TChr in
-      let rules = (ty, resty) :: tctx.rules in
-      (Ok (ELit lit), { tctx with rules })
-    end
-    | Ast.Var n ->
-      lookup_var n ty tctx (fun () -> "unknown binding named " ^ n)
-    | Ast.Tup xs -> begin
-      let (shape, tctx) = gen_tuple_shape tctx xs in
-      let tctx = { tctx with rules = (ty, TTup shape) :: tctx.rules } in
-
-      let rec loop acc tctx = function
-        | ([], []) -> (Ok (ETup (List.rev acc)), tctx)
-        | (x :: xs, y :: ys) ->
-          let< (e, tctx) = visit x tctx y in
-          loop (e :: acc) tctx (xs, ys)
-        | _ -> failwith "IMPOSSIBLE DIMENSION MISMATCH" in
-      loop [] tctx (shape, xs)
-    end
-    | Ast.List xs ->
-      let ety = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let tctx = { tctx with rules = (ty, Type.tyList ety) :: tctx.rules } in
-      let rec loop acc tctx = function
-        | [] ->
-          let gen_list acc =
-            let foldf xs x = ECons ("(::)", ty, [x; xs]) in
-            List.fold_left foldf (ECons ("[]", ty, [])) acc in
-          (Result.map gen_list acc, tctx)
-        | x :: xs ->
-          let (x, tctx) = visit ety tctx x in
-          match (acc, x) with
-            | (Error p, Error q) -> loop (Error (p @ q)) tctx xs
-            | (Error p, _) | (_, Error p) -> loop (Error p) tctx xs
-            | (Ok acc, Ok x) -> loop (Ok (x :: acc)) tctx xs in
-      loop (Ok []) tctx xs
-    | Ast.Cons (k, ys) -> begin
-      let< ((xs, resty), tctx) = lookup_dctor k ty tctx in
-      let rec loop acc tctx = function
-        | ([], []) ->
-          let tctx = { tctx with rules = (ty, resty) :: tctx.rules } in
-          (Ok (ECons (k, resty, List.rev acc)), tctx)
-        | (x :: xs, y :: ys) ->
-          let< (e, tctx) = visit x tctx y in
-          loop (e :: acc) tctx (xs, ys)
-        | (remaining, []) ->
-          (* promote the ctor into a function then partial apply it *)
-          let rec promote lift id = function
-            | [] ->
-              let e = ECons (k, resty, List.rev_map (fun v -> EVar v) lift) in
-              let e = List.fold_left (fun e a -> ELam (a, e)) e lift in
-              let e = List.fold_right (fun a e -> EApp (e, a)) acc e in
-              let resty = List.fold_right (fun a e -> Type.TArr (a, e)) remaining resty in
-              (Ok e, { tctx with rules = (ty, resty) :: tctx.rules })
-            | x :: xs -> promote ((("", id), x) :: lift) (Int64.succ id) xs in
-          promote [] 0L xs
-        | _ -> (Error ["data constructor arity mismatch"], tctx) in
-      loop [] tctx (xs, ys)
-    end
-    | Ast.Lam (ps, e) ->
-      visit_generalized_lam ty tctx [ps, e]
-    | Ast.LamCase cases ->
-      visit_generalized_lam ty tctx (List.map (fun (p, e) -> ([p], e)) cases)
-    | Ast.App (f, v) -> begin
-      let vty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-
-      let (f, tctx) = visit (Type.TArr (vty, ty)) tctx f in
-      let (v, tctx) = visit vty tctx v in
-      match (f, v) with
-        | (Ok f, Ok v) -> (Ok (EApp (f, v)), tctx)
-        | _ -> (Error (merge_errors [f; v]), tctx)
-    end
-    | Ast.Unary (op, e) -> begin
-      let ety = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-
-      let (op, tctx) =
-          let name = match op with
-            | "-" -> "not" | "!" -> "negate"
-            | op -> "(" ^ op ^ ")" in
-          let ty = Type.TArr (ety, ty) in
-          lookup_var name ty tctx (fun () -> "unknown unary operator " ^ op) in
-      let (e, tctx) = visit ety tctx e in
-      match (op, e) with
-        | (Ok op, Ok e) -> (Ok (EApp (op, e)), tctx)
-        | _ -> (Error (merge_errors [op; e]), tctx)
-    end
-    | Ast.Binary ("=", p, q) -> begin
-      let ety = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id;
-        rules = (ty, Type.TTup []) :: tctx.rules } in
-      let (p, tctx) = visit (Type.tyRef ety) tctx p in
-      let (q, tctx) = visit ety tctx q in
-      match (p, q) with
-        | (Ok p, Ok q) -> (Ok (ESet (p, 0, q)), tctx)
-        | _ -> (Error (merge_errors [p; q]), tctx)
-    end
-    | Ast.Binary ("&&", p, q) -> begin
-      let (p, tctx) = visit Type.tyBool tctx p in
-      let (q, tctx) = visit Type.tyBool tctx q in
-      match (p, q) with
-        | (Ok p, Ok q) ->
-          let e = ECase (p, [
-            PatDecons ("True", []), q;
-            PatDecons ("False", []), ECons ("False", Type.tyBool, [])]) in
-          (Ok e, tctx)
-        | _ -> (Error (merge_errors [p; q]), tctx)
-    end
-    | Ast.Binary ("||", p, q) -> begin
-      let (p, tctx) = visit Type.tyBool tctx p in
-      let (q, tctx) = visit Type.tyBool tctx q in
-      match (p, q) with
-        | (Ok p, Ok q) ->
-          let e = ECase (p, [
-            PatDecons ("True", []), ECons ("True", Type.tyBool, []);
-            PatDecons ("False", []), q]) in
-          (Ok e, tctx)
-        | _ -> (Error (merge_errors [p; q]), tctx)
-    end
-    | Ast.Binary (op, p, q) -> begin
-      let pty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let qty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-
-      let (op, tctx) =
-        let name = "(" ^ op ^ ")" in
-        let ty = Type.TArr (pty, Type.TArr (qty, ty)) in
-        lookup_var name ty tctx (fun () -> "unknown binary operator " ^ op) in
-      let (p, tctx) = visit pty tctx p in
-      let (q, tctx) = visit qty tctx q in
-      match (op, p, q) with
-        | (Ok op, Ok p, Ok q) -> (Ok (EApp (EApp (op, p), q)), tctx)
-        | _ -> (Error (merge_errors [op; p; q]), tctx)
-    end
-    | Ast.Seq [] ->
-      let tctx = { tctx with rules = (ty, Type.TTup []) :: tctx.rules } in
-      (Ok (ETup []), tctx)
-    | Ast.Seq (x :: xs) ->
-      let rec loop acc tctx x = function
-        | [] ->
-          let< (x, tctx) = visit ty tctx x in
-          let foldf e v = ELet (NonRec ((("_", 0L), Type.TTup []), v), e) in
-          (Ok (List.fold_left foldf x acc), tctx)
-        | y :: xs ->
-          let< (x, tctx) = visit (Type.TTup []) tctx x in
-          loop (x :: acc) tctx y xs in
-      loop [] tctx x xs
-    | Ast.Let (vb, e) -> begin
-      let< ((new_ids, acc), tctx) = visit_vdefs false tctx vb in
-      let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-      let (e, tctx) = visit ty tctx e in
-      let tctx = { tctx with idenv = List.tl tctx.idenv } in
-      match e with
-        | Error e -> (Error e, tctx)
-        | Ok e ->
-          (* rewrite it into a series of single nonrec lets *)
-          let acc = List.rev_map (fun (((n, _), ty), i) -> (n, ty, i)) acc in
-          let e = List.fold_left (fun e (n, ty, _) -> ELet (NonRec (((n, 0L), ty), EVar ((n, 1L), ty)), e)) e acc in
-          let e = List.fold_left (fun e (n, ty, i) -> ELet (NonRec (((n, 1L), ty), i), e)) e acc in
-          (Ok e, tctx)
-    end
-    | Ast.LetRec (vb, e) -> begin
-      let< ((new_ids, acc), tctx) = visit_vdefs true tctx vb in
-      let tctx = { tctx with idenv = new_ids :: tctx.idenv } in
-      let (e, tctx) = visit ty tctx e in
-      let tctx = { tctx with idenv = List.tl tctx.idenv } in
-      match e with
-        | Error e -> (Error e, tctx)
-        | Ok e -> (Ok (ELet (Rec acc, e)), tctx)
-    end
-    | Ast.Case (s, cases) -> begin
-      let sty = Type.TVar ("", tctx.id)
-      and tctx = { tctx with id = Int64.succ tctx.id } in
-      let< (s, tctx) = visit sty tctx s in
-      let< (cases, tctx) = visit_cases sty ty tctx cases in
-      let< ((), tctx) = unify_ctx tctx in
-      let (sty, subst) = Type.expand tctx.subst sty in
-      let tctx = { tctx with subst } in
-
-      let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
-      let tmp = (("", 0L), sty) in
-      (Ok (ELet (NonRec (tmp, s),
-        ConvCase.conv 1L [EVar tmp, sty] (helper cases))), tctx)
-    end
-    | Ast.Cond (k, t, f) -> begin
-      let (k, tctx) = visit Type.tyBool tctx k in
-      let (t, tctx) = visit ty tctx t in
-      let (f, tctx) = visit ty tctx f in
-      match (k, t, f) with
-        | (Ok k, Ok t, Ok f) ->
-          let e = ECase (k, [PatDecons ("True", []), t; PatDecons ("False", []), f]) in
-          (Ok e, tctx)
-        | _ -> (Error (merge_errors [k; t; f]), tctx)
-    end
-    | Ast.ExprTyped (e, annot) -> begin
-      (* solve the type first to help resolve ambiguous data constructors *)
-      let< ((annotty, kind, _), tctx) = visit_ast_type true None tctx annot in
-      let rules = (kind, Type.TKind) :: (annotty, ty) :: tctx.rules in
-      visit ty { tctx with rules } e
-    end in
-
-  visit ty tctx ast
-
-let visit_top_expr (tctx : tctx) (ast : Ast.ast_expr) =
-  let resty = Type.TVar ("", tctx.id)
-  and tctx = { tctx with id = Int64.succ tctx.id } in
-  match visit_expr resty tctx ast with
-    | (Error e, _) -> Error e
-    | (Ok ast, tctx) ->
-      match unify_ctx tctx with
-        | (Error e, _) -> Error e
-        | (Ok (), tctx) ->
-          let (resty, subst) = Type.expand tctx.subst resty in
-          let (ast, subst) = Expr.expand_type subst ast in
-          Ok (ast, resty, { tctx with subst })
-
-let visit_top_defs (tctx : tctx) (vb : Ast.ast_vdef list) =
-  let (defs, tctx) = visit_vdefs true tctx vb in
-  match defs with
-    | Error e -> Error e
-    | Ok (new_ids, acc) ->
-      Ok (acc, { tctx with idenv = new_ids :: tctx.idenv })
-
-let visit_top_externs (tctx : tctx) (vb : Ast.ast_extern list) =
-  let rec loop map tctx = function
+  let rec fill_scope new_ids rules ctx = function
     | [] ->
-      let< ((), tctx) = unify_ctx tctx in
-      (Ok map, tctx)
+      let old_fixed_tvars = ctx.fixed_tvars in
+      let ctx = { ctx with fixed_tvars = monos } in
+      let* (m, acc, rules, ctx) =
+        if recur then
+          let ctx = { ctx with idenv = new_ids :: ctx.idenv } in
+          let* (m, acc, rules, ctx) = eval_init new_ids V.Set.empty [] rules ctx vb in
+          let ctx = { ctx with idenv = List.tl ctx.idenv } in
+          Ok (m, acc, rules, ctx)
+        else eval_init new_ids V.Set.empty [] rules ctx vb in
+      Ok (m, acc, rules, { ctx with fixed_tvars = old_fixed_tvars })
+    | (n, _, []) :: _ -> Error ["missing implementation for " ^ n]
+    | (n, None, _) :: xs ->
+      let (bty, ctx) = mk_tvar ctx "" in
+      fill_scope (StrMap.add n bty new_ids) rules ctx xs
+    | (n, Some annot, _) :: xs ->
+      let* (bty, kind, f, _, ctx) = visit_ast_type true (Some StrMap.empty) ctx annot in
+      let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
+      let qs = T.collect_free_tvars bty in
+      let filterf (n, _) = not @@ V.Set.mem n monos in
+      let (qs, ctx) = gen ctx (List.filter filterf qs) in
+      let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
+      fill_scope (StrMap.add n qt new_ids) (f :: rules) ctx xs in
+  fill_scope StrMap.empty rules ctx vb
+
+and lookup_var n ty ctx errf =
+  match lookup_env n ctx.idenv with
+    | None -> Error [errf ()]
+    | Some vty ->
+      let (ts, instty, ctx) = inst ctx vty in
+      let e = C.EVar ((n, Z.zero), vty) in
+      let e = List.fold_left (fun e a -> C.EApp (e, C.EType a)) e ts in
+      Ok (e, S.CnstEq (ctx.fixed_tvars, ty, instty), ctx)
+
+and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
+  | Ast.Lit lit ->
+    let resty = match lit with
+      | LitInt _ -> Type.TInt
+      | LitStr _ -> Type.TStr
+      | LitChar _ -> Type.TChr in
+    Ok (C.ELit lit, S.CnstEq (ctx.fixed_tvars, ty, resty) :: rules, ctx)
+
+  | Ast.Var n ->
+    let* (e, f, ctx) = lookup_var n ty ctx (fun () -> "unknown binding named " ^ n) in
+    Ok (e, f :: rules, ctx)
+
+  | Ast.Tup xs ->
+    let rec loop acc rules ctx = function
+      | ([], []) -> Ok (C.ETup (List.rev acc), rules, ctx)
+      | (x :: xs, y :: ys) ->
+        let* (e, rules, ctx) = visit_expr x rules ctx y in
+        loop (e :: acc) rules ctx (xs, ys)
+      | _ -> failwith "IMPOSSIBLE DIMENSION MISMATCH" in
+
+    let (shape, ctx) = gen_tuple_shape ctx xs in
+    let rules = S.CnstEq (ctx.fixed_tvars, ty, TTup shape) :: rules in
+    loop [] rules ctx (shape, xs)
+
+  | Ast.List xs ->
+    let (ety, ctx) = mk_tvar ctx "" in
+    let rec loop acc rules ctx = function
+      | [] ->
+        let gen_list acc =
+          let foldf xs x = C.ECons ("(::)", ty, [x; xs]) in
+          List.fold_left foldf (C.ECons ("[]", ty, [])) acc in
+        Ok (gen_list acc, rules, ctx)
+      | x :: xs ->
+        let* (x, rules, ctx) = visit_expr ety rules ctx x in
+        loop (x :: acc) rules ctx xs in
+    let rules = S.CnstEq (ctx.fixed_tvars, ty, T.tyList ety) :: rules in
+    loop [] rules ctx xs
+
+  | Ast.Cons (k, ys) ->
+    let* (xs, resty, rules, ctx) = lookup_dctor k ty rules ctx in
+    let rec loop acc rules ctx = function
+      | ([], []) ->
+        let rules = S.CnstEq (ctx.fixed_tvars, ty, resty) :: rules in
+        Ok (C.ECons (k, resty, List.rev acc), rules, ctx)
+      | (x :: xs, y :: ys) ->
+        let* (e, rules, ctx) = visit_expr x rules ctx y in
+        loop (e :: acc) rules ctx (xs, ys)
+      | (remaining, []) ->
+        (* promote the ctor into a function then partial apply it *)
+        let rec promote lift id = function
+          | [] ->
+            let e = C.ECons (k, resty, List.rev_map (fun v -> C.EVar v) lift) in
+            let e = List.fold_left (fun e a -> C.ELam (a, e)) e lift in
+            let e = List.fold_right (fun a e -> C.EApp (e, a)) acc e in
+            let resty = List.fold_right (fun a e -> T.TArr (a, e)) remaining resty in
+            Ok (e, S.CnstEq (ctx.fixed_tvars, ty, resty) :: rules, ctx)
+          | x :: xs -> promote ((("", id), x) :: lift) (Z.succ id) xs in
+        promote [] Z.zero xs
+      | _ -> Error ["data constructor arity mismatch"] in
+    loop [] rules ctx (xs, ys)
+
+  | Ast.Lam (ps, e) ->
+    visit_generalized_lam ty rules ctx [ps, e]
+  | Ast.LamCase cases ->
+    visit_generalized_lam ty rules ctx (List.map (fun (p, e) -> ([p], e)) cases)
+
+  | Ast.App (f, v) ->
+    let (vty, ctx) = mk_tvar ctx "" in
+    let* (f, rules, ctx) = visit_expr (T.TArr (vty, ty)) rules ctx f in
+    let* (v, rules, ctx) = visit_expr vty rules ctx v in
+    Ok (C.EApp (f, v), rules, ctx)
+
+  | Ast.Unary (op, e) ->
+    let (ety, ctx) = mk_tvar ctx "" in
+    let* (op, f, ctx) =
+      let name = match op with
+        | "-" -> "not" | "!" -> "negate"
+        | op -> "(" ^ op ^ ")" in
+      let ty = T.TArr (ety, ty) in
+      lookup_var name ty ctx (fun () -> "unknown unary operator " ^ op) in
+    let* (e, rules, ctx) = visit_expr ety rules ctx e in
+    Ok (C.EApp (op, e), f :: rules, ctx)
+
+  | Ast.Binary ("=", p, q) ->
+    let (ety, ctx) = mk_tvar ctx "" in
+    let rules = S.CnstEq (ctx.fixed_tvars, ty, T.TTup []) :: rules in
+    let* (p, rules, ctx) = visit_expr (T.tyRef ety) rules ctx p in
+    let* (q, rules, ctx) = visit_expr ety rules ctx q in
+    Ok (C.ESet (p, 0, q), rules, ctx)
+
+  | Ast.Binary ("&&", p, q) ->
+    let rules = S.CnstEq (ctx.fixed_tvars, ty, T.tyBool) :: rules in
+    let* (p, rules, ctx) = visit_expr T.tyBool rules ctx p in
+    let* (q, rules, ctx) = visit_expr T.tyBool rules ctx q in
+    let e = C.ECase (p, [
+      PatDecons ("True", []), q;
+      PatDecons ("False", []), ECons ("False", T.tyBool, [])]) in
+    Ok (e, rules, ctx)
+
+  | Ast.Binary ("||", p, q) ->
+    let rules = S.CnstEq (ctx.fixed_tvars, ty, T.tyBool) :: rules in
+    let* (p, rules, ctx) = visit_expr T.tyBool rules ctx p in
+    let* (q, rules, ctx) = visit_expr T.tyBool rules ctx q in
+    let e = C.ECase (p, [
+      PatDecons ("True", []), ECons ("True", T.tyBool, []);
+      PatDecons ("False", []), q]) in
+    Ok (e, rules, ctx)
+
+  | Ast.Binary (op, p, q) ->
+    let (pty, ctx) = mk_tvar ctx "" in
+    let (qty, ctx) = mk_tvar ctx "" in
+    let* (op, f, ctx) =
+      let name = "(" ^ op ^ ")" in
+      let ty = T.TArr (pty, T.TArr (qty, ty)) in
+      lookup_var name ty ctx (fun () -> "unknown binary operator " ^ op) in
+    let* (p, rules, ctx) = visit_expr pty rules ctx p in
+    let* (q, rules, ctx) = visit_expr qty rules ctx q in
+    Ok (C.EApp (C.EApp (op, p), q), f :: rules, ctx)
+
+  | Ast.Seq [] ->
+    Ok (C.ETup [], S.CnstEq (ctx.fixed_tvars, ty, T.TTup []) :: rules, ctx)
+  | Ast.Seq (x :: xs) ->
+    let rec loop acc rules ctx x = function
+      | [] ->
+        let* (x, rules, ctx) = visit_expr ty rules ctx x in
+        let foldf e v = C.ELet (NonRec ((("_", Z.zero), T.TTup []), v), e) in
+        Ok (List.fold_left foldf x acc, rules, ctx)
+      | y :: xs ->
+        let* (x, rules, ctx) = visit_expr (T.TTup []) rules ctx x in
+        loop (x :: acc) rules ctx y xs in
+    loop [] rules ctx x xs
+
+  | Ast.Let (vb, e) ->
+    let* (new_ids, acc, rules, ctx) = visit_vdefs false rules ctx vb in
+    let ctx = { ctx with idenv = new_ids :: ctx.idenv } in
+    let* (e, rules, ctx) = visit_expr ty rules ctx e in
+    let ctx = { ctx with idenv = List.tl ctx.idenv } in
+
+    (* rewrite it into a series of single nonrec lets *)
+    let acc = List.rev_map (fun (((n, _), ty), i) -> (n, ty, i)) acc in
+    let e = List.fold_left (fun e (n, ty, _) -> C.ELet (NonRec (((n, Z.zero), ty), EVar ((n, Z.one), ty)), e)) e acc in
+    let e = List.fold_left (fun e (n, ty, i) -> C.ELet (NonRec (((n, Z.one), ty), i), e)) e acc in
+    Ok (e, rules, ctx)
+
+  | Ast.LetRec (vb, e) ->
+    let* (new_ids, acc, rules, ctx) = visit_vdefs true rules ctx vb in
+    let ctx = { ctx with idenv = new_ids :: ctx.idenv } in
+    let* (e, rules, ctx) = visit_expr ty rules ctx e in
+    let ctx = { ctx with idenv = List.tl ctx.idenv } in
+    Ok (C.ELet (Rec acc, e), rules, ctx)
+
+  | Ast.Case (s, cases) -> begin
+    let (sty, ctx) = mk_tvar ctx "" in
+    let* (s, rules, ctx) = visit_expr sty rules ctx s in
+    let* (cases, rules, ctx) = visit_cases sty rules ty ctx cases in
+
+    (* eagarly solve constraints *)
+    match S.solve rules with
+      | Error e -> Error (List.map S.explain e)
+      | Ok rules ->
+        let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
+        let tmp = (("", Z.zero), sty) in
+        let e = ConvCase.conv Z.one [C.EVar tmp, sty] (helper cases) in
+        Ok (C.ELet (NonRec (tmp, s), e), rules, ctx)
+  end
+
+  | Ast.Cond (k, t, f) ->
+    let* (k, rules, ctx) = visit_expr Type.tyBool rules ctx k in
+    let* (t, rules, ctx) = visit_expr ty rules ctx t in
+    let* (f, rules, ctx) = visit_expr ty rules ctx f in
+    let e = C.ECase (k, [C.PatDecons ("True", []), t; C.PatDecons ("False", []), f]) in
+    Ok (e, rules, ctx)
+
+  | Ast.ExprTyped (e, annot) ->
+    let* (annot, kind, f, _, ctx) = visit_ast_type true None ctx annot in
+    let rules = f
+      :: S.CnstEq (V.Set.empty, kind, T.TKind)
+      :: S.CnstEq (ctx.fixed_tvars, annot, ty)
+      :: rules in
+    visit_expr ty rules ctx e
+
+let visit_top_expr (ctx : context) (ast : Ast.ast_expr) =
+  let (resty, ctx) = mk_tvar ctx "" in
+  let* (ast, rules, ctx) = visit_expr resty [] ctx ast in
+  match S.solve rules with
+    | Error e -> Error (List.map S.explain e)
+    | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+    | Ok [] -> Ok (ast, resty, ctx)
+
+let visit_top_defs (ctx : context) (vb : Ast.ast_vdef list) =
+  let* (new_ids, acc, rules, ctx) = visit_vdefs true [] ctx vb in
+  match S.solve rules with
+    | Error e -> Error (List.map S.explain e)
+    | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+    | Ok [] -> Ok (acc, { ctx with idenv = new_ids :: ctx.idenv })
+
+let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
+  let rec loop rules map ctx = function
+    | [] -> begin
+      match S.solve rules with
+        | Error e -> Error (List.map S.explain e)
+        | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+        | Ok [] -> Ok (map, ctx)
+    end
     | (n, annot, extn) :: xs ->
-      let< ((annot, kind, _), tctx) = visit_ast_type false None tctx annot in
-      let tctx = { tctx with rules = (kind, Type.TKind) :: tctx.rules } in
+      let* (annot, kind, f, _, ctx) = visit_ast_type false None ctx annot in
       let updatef = function
         | None -> Some (annot, extn)
         | t -> t in
       let next = StrMap.update n updatef map in
-      if next == map then (Error ["duplicate extern definition " ^ n], tctx)
-      else loop next tctx xs in
+      if next == map then Error ["duplicate extern definition " ^ n]
+      else loop (S.CnstEq (V.Set.empty, kind, T.TKind) :: f :: rules) next ctx xs in
 
-  match loop StrMap.empty tctx vb with
-    | (Error e, _) -> Error e
-    | (Ok m, tctx) ->
-      let s = StrMap.map fst m in
-      Ok (m, { tctx with idenv = s :: tctx.idenv })
+  let* (m, ctx) = loop [] StrMap.empty ctx vb in
+  let s = StrMap.map fst m in
+  Ok (m, { ctx with idenv = s :: ctx.idenv })
 
-let visit_top_data (tctx : tctx) (dats : Ast.ast_data list) =
-  if tctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
-  if tctx.rules <> [] then failwith "RULES NOT EMPTY?";
+let visit_top_data (ctx : context) (dats : Ast.ast_data list) =
+  if ctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
 
   let open Type in
-  let rec collect_cases new_decls new_cases tctx = function
+  let rec collect_cases rules new_decls new_cases ctx = function
     | [] -> begin
-      let< ((), tctx) = unify_ctx { tctx with tvenv = [] } in
-      let rec update_kinds new_types tctx = function
-        | [] ->
-          (Ok new_types, { tctx with dctors = merge_map tctx.dctors new_cases })
-        | (n, _, _) :: xs ->
-          let (t, k) = StrMap.find n tctx.tctors in
-          let (k, subst) = expand tctx.subst k in
-          let (qs, k) = gen V.Set.empty k in
-          let k = List.fold_right (fun q k -> TQuant (q, k)) qs k in
-          let tctors = StrMap.add n (t, k) tctx.tctors in
-          let new_types = StrMap.add n (t, k) new_types in
-          update_kinds new_types { tctx with tctors; subst } xs in
-      update_kinds StrMap.empty tctx dats
+      match S.solve rules with
+        | Error e -> Error (List.map S.explain e)
+        | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+        | Ok [] ->
+          let ctx = { ctx with tvenv = [] } in
+          let rec update_kinds new_types ctx = function
+            | [] ->
+              Ok (new_types, { ctx with dctors = merge_map ctx.dctors new_cases })
+            | (n, _, _) :: xs ->
+              let (t, k) = StrMap.find n ctx.tctors in
+              let qs = T.collect_free_tvars k in
+              let (qs, ctx) = gen ctx qs in
+              let k = List.fold_left (fun k q -> TQuant (q, k)) k qs in
+              let tctors = StrMap.add n (t, k) ctx.tctors in
+              let new_types = StrMap.add n (t, k) new_types in
+              update_kinds new_types { ctx with tctors } xs in
+          update_kinds StrMap.empty ctx dats
     end
     | (n, _, cases) :: xs ->
       let (variant, tvenv) = StrMap.find n new_decls in
-      let rec loop new_cases tctx = function
-        | [] -> collect_cases new_decls new_cases tctx xs
+      let rec loop rules new_cases ctx = function
+        | [] -> collect_cases rules new_decls new_cases ctx xs
         | (k, args) :: xs ->
-          let rec inner acc tctx = function
+          let rec inner rules acc ctx = function
             | [] -> begin
               if Hashtbl.mem variant.cases k then
-                (Error ["duplicate data constructor " ^ k], tctx)
+                Error ["duplicate data constructor " ^ k]
               else begin
                 Hashtbl.add variant.cases k (List.rev acc);
-                loop (StrMap.add k variant new_cases) tctx xs
+                loop rules (StrMap.add k variant new_cases) ctx xs
               end
             end
             | x :: xs ->
-              let< ((t, k, _), tctx) = visit_ast_type false None tctx x in
-              let rules = (k, TKind) :: tctx.rules in
-              inner (t :: acc) { tctx with rules } xs in
-          inner [] tctx args in
-      loop new_cases { tctx with tvenv = [tvenv] } cases in
+              let* (t, k, f, _, ctx) = visit_ast_type false None ctx x in
+              inner (S.CnstEq (V.Set.empty, k, TKind) :: f :: rules) (t :: acc) ctx xs in
+          inner rules [] ctx args in
+      loop rules new_cases { ctx with tvenv = [tvenv] } cases in
 
-  let rec collect_names new_decls tctx = function
-    | [] -> collect_cases new_decls StrMap.empty tctx dats
+  let rec collect_names new_decls ctx = function
+    | [] -> collect_cases [] new_decls StrMap.empty ctx dats
     | (n, args, _) :: xs ->
-      let< ((tvenv, args), tctx) = collect_decl_tvs tctx args in
+      let* (tvenv, args, ctx) = collect_decl_tvs ctx args in
       let variant : Type.variant = {
         name = n;
         quants = List.map fst args;
@@ -879,48 +789,36 @@ let visit_top_data (tctx : tctx) (dats : Ast.ast_data list) =
         | None -> Some (variant, tvenv)
         | t -> t in
       let next = StrMap.update n updatef new_decls in
-      if next == new_decls then (Error ["duplicate data definition " ^ n], tctx)
+      if next == new_decls then Error ["duplicate data definition " ^ n]
       else begin
         let foldf (_, qk) k = TArr (qk, k) in
         let kind = List.fold_right foldf args TKind in
         let entry = (TCons (TCtorVar variant, []), kind) in
-        let tctors = StrMap.add n entry tctx.tctors in
-        collect_names next { tctx with tctors } xs
+        let tctors = StrMap.add n entry ctx.tctors in
+        collect_names next { ctx with tctors } xs
       end in
 
-  match collect_names StrMap.empty tctx dats with
-    | (Error e, _) -> Error e
-    | (Ok new_types, tctx) -> Ok (new_types, tctx)
+  collect_names StrMap.empty ctx dats
 
-let visit_toplevel (tctx : tctx) (ast : Ast.ast_toplevel) =
+let visit_toplevel (ctx : context) (ast : Ast.ast_toplevel) =
   match ast with
-    | Ast.TopAlias aliases -> begin
-      match visit_top_alias tctx aliases with
-        | Error e -> Error e
-        | Ok (m, tctx) -> Ok (AddTypes m, tctx)
-    end
-    | Ast.TopDef defs -> begin
-      match visit_top_defs tctx defs with
-        | Error e -> Error e
-        | Ok (m, tctx) -> Ok (AddGlobl m, tctx)
-    end
-    | Ast.TopExtern defs -> begin
-      match visit_top_externs tctx defs with
-        | Error e -> Error e
-        | Ok (m, tctx) -> Ok (AddExtern m, tctx)
-    end
-    | Ast.TopData defs -> begin
-      match visit_top_data tctx defs with
-        | Error e -> Error e
-        | Ok (m, tctx) -> Ok (AddTypes m, tctx)
-    end
-    | Ast.TopExpr e -> begin
-      match visit_top_expr tctx e with
-        | Error e -> Error e
-        | Ok (ast, ty, tctx) -> Ok (EvalExpr (ast, ty), tctx)
-    end
+    | Ast.TopAlias aliases ->
+      let* (m, ctx) = visit_top_alias ctx aliases in
+      Ok (AddTypes m, ctx)
+    | Ast.TopDef defs ->
+      let* (m, ctx) = visit_top_defs ctx defs in
+      Ok (AddGlobl m, ctx)
+    | Ast.TopExtern defs ->
+      let* (m, ctx) = visit_top_externs ctx defs in
+      Ok (AddExtern m, ctx)
+    | Ast.TopData defs ->
+      let* (m, ctx) = visit_top_data ctx defs in
+      Ok (AddTypes m, ctx)
+    | Ast.TopExpr e ->
+      let* (ast, ty, ctx) = visit_top_expr ctx e in
+      Ok (EvalExpr (ast, ty), ctx)
 
-let visit_prog (tctx : tctx) (ast : Ast.ast_toplevel list) =
+let visit_prog (tctx : context) (ast : Ast.ast_toplevel list) =
   let rec loop acc tctx = function
     | [] -> Ok (List.rev acc, tctx)
     | x :: xs ->
