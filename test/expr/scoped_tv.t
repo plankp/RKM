@@ -59,7 +59,7 @@ Underscore types are allowed in pattern contexts
   $ GenExpr << "EOF"
   > match [1] with [x : _] -> x
   > EOF
-  let ($0 : [Int]) = ((::) 1 ([] : [Int]) : [Int]) in match ($0 : [Int]) with { (::) ($1 : Int) ($2 : [Int]) -> match ($2 : [Int]) with { (::) ($3 : Int) ($4 : [Int]) -> (Raise# UNHANDLED PATTERN); [] -> let (x : Int) = ($1 : Int) in (x : Int); }; [] -> (Raise# UNHANDLED PATTERN); }
+  let ($0 : [Int]) = ((::) 1 ([] : [Int]) : [Int]) in match ($0 : [Int]) with { (::) ($1 : Int) ($2 : [Int]) -> match ($2 : [Int]) with { [] -> let (x : Int) = ($1 : Int) in (x : Int); _ -> (Raise# UNHANDLED PATTERN); }; _ -> (Raise# UNHANDLED PATTERN); }
   : Int
 
 Underscore types are also allowed in expression contexts

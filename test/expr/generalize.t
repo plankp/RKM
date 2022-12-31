@@ -121,5 +121,5 @@ But it should after adding explicit type annotations
   >         foo (_ :: xs) = foo xs
   > in foo []
   > EOF
-  let rec { (foo : (\a$1. [a$1] -> ())) = \($0 : [$20]) -> match ($0 : [$20]) with { (::) ($1 : $20) ($2 : [$20]) -> match ($2 : [$20]) with { (::) ($3 : $20) ($4 : [$20]) -> let (xs : [$20]) = ($2 : [$20]) in (foo : (\a$1. [a$1] -> ())) (@$20) (xs : [$20]); [] -> (foo : (\a$1. [a$1] -> ())) (@String) ((::) "abc" ([] : [String]) : [String]); }; [] -> (foo : (\a$1. [a$1] -> ())) (@Int) ((::) 1 ([] : [Int]) : [Int]); } } in (foo : (\a$1. [a$1] -> ())) (@$23) ([] : [$23])
+  let rec { (foo : (\a$1. [a$1] -> ())) = \($0 : [$20]) -> match ($0 : [$20]) with { [] -> (foo : (\a$1. [a$1] -> ())) (@Int) ((::) 1 ([] : [Int]) : [Int]); (::) ($1 : $20) ($2 : [$20]) -> match ($2 : [$20]) with { [] -> (foo : (\a$1. [a$1] -> ())) (@String) ((::) "abc" ([] : [String]) : [String]); _ -> let (xs : [$20]) = ($2 : [$20]) in (foo : (\a$1. [a$1] -> ())) (@$20) (xs : [$20]); }; } } in (foo : (\a$1. [a$1] -> ())) (@$23) ([] : [$23])
   : ()

@@ -1,6 +1,7 @@
 open Printf
 open Expr
 open Type
+module V = VarInfo
 
 type pat_matrix = (Ast.ast_pat list * expr) list
 type scrut = expr * Type.t
@@ -114,16 +115,33 @@ let rec conv (id : int64) (s : scrut list) (m : pat_matrix) =
               ECase (s, [PatUnpack (List.rev decons), conv id rem m])
 
             | TCons (TCtorVar k, args) ->
-              let foldf cases (k, xs) =
-                let foldf (id, rem, decons) x =
-                  let tmp = (("", id), x) in
-                  (Int64.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
-                let (id, rem, decons) = List.fold_left foldf (id, rem, []) xs in
+              (* compute the type substitution for instantiating each case *)
+              let foldf m q arg = V.Map.add q arg m in
+              let env = List.fold_left2 foldf V.Map.empty k.quants args in
 
-                let m = specialize_var (s, ty) k xs pivot m in
-                (PatDecons (k, (List.rev decons)), conv id rem m) :: cases in
-              let cases = List.fold_left foldf [] (Type.inst_variant k args) in
-              ECase (s, cases)
+              (* only emit the listed cases and an optional defaulted case *)
+              let remaining = Hashtbl.copy k.cases in
+              let rec emit_decons_cases acc = function
+                | [] ->
+                  let tail =
+                    if Hashtbl.length remaining = 0 then []
+                    else [PatIgnore, conv id rem (defaulted (s, ty) pivot m)] in
+                  ECase (s, List.rev_append acc tail)
+                | Ast.Decons (k, _) :: xs when Hashtbl.mem remaining k ->
+                  let args = Hashtbl.find remaining k in
+                  let args = List.map (eval env V.Set.empty) args in
+                  Hashtbl.remove remaining k;
+
+                  let foldf (id, rem, decons) x =
+                    let tmp = (("", id), x) in
+                    (Int64.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
+                  let (id, rem, decons) = List.fold_left foldf (id, rem, []) args in
+
+                  let m = specialize_var (s, ty) k args pivot m in
+                  let acc = (PatDecons (k, (List.rev decons)), conv id rem m) :: acc in
+                  emit_decons_cases acc xs
+                | _ :: xs -> emit_decons_cases acc xs in
+              emit_decons_cases [] pivot
 
             | TChr | TStr | TInt ->
               let listed = Hashtbl.create 32 in

@@ -51,5 +51,5 @@
   >     (&) _    _    = False
   > in True & False
   > EOF
-  let ((&)$1 : Bool -> Bool -> Bool) = \($0 : Bool) -> \($1 : Bool) -> match ($0 : Bool) with { False -> (False : Bool); True -> match ($1 : Bool) with { False -> (False : Bool); True -> (True : Bool); }; } in let ((&) : Bool -> Bool -> Bool) = ((&)$1 : Bool -> Bool -> Bool) in ((&) : Bool -> Bool -> Bool) (True : Bool) (False : Bool)
+  let ((&)$1 : Bool -> Bool -> Bool) = \($0 : Bool) -> \($1 : Bool) -> match ($0 : Bool) with { True -> match ($1 : Bool) with { True -> (True : Bool); _ -> (False : Bool); }; _ -> (False : Bool); } in let ((&) : Bool -> Bool -> Bool) = ((&)$1 : Bool -> Bool -> Bool) in ((&) : Bool -> Bool -> Bool) (True : Bool) (False : Bool)
   : Bool
