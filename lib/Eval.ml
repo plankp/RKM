@@ -109,7 +109,8 @@ let rec eval (env : env) : Core.expr -> (value, string) result = function
     let* s = eval env s in
     loop (unwrap s, cases)
   end
-  | EType _ -> failwith "UNHANDLED NODE TO EVAL"
+
+  | EType _ | EHole _ -> failwith "UNHANDLED NODE TO EVAL"
 
 and eval_ref_list env list =
   let rec loop acc = function

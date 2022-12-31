@@ -17,6 +17,7 @@ type expr =
   | ECase of expr * (pat * expr) list
   | ELet of binding * expr
   | ESet of expr * int * expr (* for mutating refs... *)
+  | EHole of expr ref (* for injecting things into exprs... *)
 
 and pat =
   | PatIgnore
@@ -27,6 +28,10 @@ and pat =
 and binding =
   | NonRec of name * expr
   | Rec of (name * expr) list
+
+let mk_empty_hole () =
+  let rec e = EHole r and r = ref e in
+  (e, r)
 
 let rec output_name ppf (v, t) =
   fprintf ppf "(%a : %a)" V.output v Type.output t
@@ -88,6 +93,10 @@ and output ppf (e : expr) =
     | ESet (d, idx, s) ->
       fprintf ppf "%a.%d = %a" (output 2) d idx (output 0) s
 
+    | EHole { contents = chain } as t ->
+      if t == chain then output_string ppf "[#]"
+      else fprintf ppf "[%a]" (output 0) chain
+
     and adjust_prec prec = function
       | ETyLam _ | ELam _ | ELet _ | ESet _ as t when prec > 0 -> ETup [t]
       | EApp _ as t when prec > 1 -> ETup [t]
@@ -116,6 +125,9 @@ let rec collect_free : expr -> V.Set.t = function
     let foldf d (p, e) =
       V.Set.union d (V.Set.diff (collect_free e) (collect_captures p)) in
     List.fold_left foldf (collect_free s) cases
+  | EHole { contents = chain } as t ->
+    if t == chain then V.Set.empty
+    else collect_free chain
 
 and collect_captures : pat -> V.Set.t = function
   | PatIgnore | PatLit _ -> V.Set.empty
@@ -144,6 +156,8 @@ and is_statically_constructive (names : V.Set.t) : expr -> bool = function
         loop (V.Set.add n dset) xs
       | _ -> false in
     loop names vb
+  | EHole { contents = chain } as t when t != chain ->
+    is_statically_constructive names chain
   | t -> V.Set.disjoint names (collect_free t)
 
 and is_immediately_linked (names : V.Set.t) : expr -> bool = function
@@ -159,6 +173,8 @@ and is_immediately_linked (names : V.Set.t) : expr -> bool = function
       else dset in
     let names = List.fold_left foldf names vb in
     is_immediately_linked names e
+  | EHole { contents = chain } as t when t != chain ->
+    is_immediately_linked names chain
   | _ -> false
 
 let rec is_syntactic_value : expr -> bool = function
@@ -169,4 +185,24 @@ let rec is_syntactic_value : expr -> bool = function
   | ELet (NonRec (_, i), e) -> is_syntactic_value i && is_syntactic_value e
   | ELet (Rec vb, e) ->
     List.for_all (fun (_, i) -> is_syntactic_value i) vb && is_syntactic_value e
+  | EHole { contents = chain } as t when t != chain -> is_syntactic_value chain
   | _ -> false
+
+let rec normalize = function
+  | (EVar _ | ELit _ | ERaise _) as t -> t
+  | EHole { contents = chain } as t ->
+    if chain == t then t else normalize chain
+  | EType t -> EType (Type.normalize t)
+  | ETup xs -> ETup (List.map normalize xs)
+  | ECons (k, t, xs) -> ECons (k, t, List.map normalize xs)
+  | EApp (p, q) -> EApp (normalize p, normalize q)
+  | ELam (n, e) -> ELam (n, normalize e)
+  | ETyLam (n, e) -> ETyLam (n, normalize e)
+  | ECase (s, cases) ->
+    ECase (normalize s, List.map (fun (p, e) -> (p, normalize e)) cases)
+  | ELet (vb, e) -> ELet (normalize_binding vb, normalize e)
+  | ESet (p, idx, q) -> ESet (normalize p, idx, normalize q)
+
+and normalize_binding = function
+  | NonRec (b, i) -> NonRec (b, normalize i)
+  | Rec xs -> Rec (List.map (fun (b, i) -> (b, normalize i)) xs)

@@ -5,13 +5,14 @@ module S = Solver
 module C = Core
 
 type tkmap = (T.t * T.t) StrMap.t
+type vtmap = (C.expr * T.t) StrMap.t
 
 type context = {
   id : Z.t;
   tctors : tkmap;
   dctors : T.variant StrMap.t;
   tvenv : tkmap list;
-  idenv : T.t StrMap.t list;
+  idenv : vtmap list;
 
   fixed_tvars : V.Set.t;
 }
@@ -90,7 +91,7 @@ let free_ctx (ctx : context) : V.Set.t =
   let rec collect_idenv acc = function
     | [] -> collect_tvenv acc ctx.tvenv
     | x :: xs ->
-      let foldf _ t acc = T.free_tvars ~acc t in
+      let foldf _ (_, t) acc = T.free_tvars ~acc t in
       collect_idenv (StrMap.fold foldf x acc) xs in
 
   collect_idenv V.Set.empty ctx.idenv
@@ -248,7 +249,9 @@ let visit_pat (ty : T.t) (rules : S.cnst list) (next : tkmap) (ctx : context) (a
     | Ast.Cap (Some n) as p -> begin
       match StrMap.find_opt n captures with
         | Some _ -> Error ["repeated capture of " ^ n]
-        | None -> Ok (p, rules, StrMap.add n ty captures, next, ctx)
+        | None ->
+          let captures = StrMap.add n (C.EVar ((n, Z.zero), ty), ty) captures in
+          Ok (p, rules, captures, next, ctx)
     end
 
     | Ast.Match lit as p ->
@@ -308,16 +311,16 @@ let visit_pat (ty : T.t) (rules : S.cnst list) (next : tkmap) (ctx : context) (a
               | None -> Ok (Ast.Alternate (p, q), rules, captures, next, ctx)
               | Some (cap, _) -> Error ["binding " ^ cap ^ " is only captured on one branch"]
           end
-          | Seq.Cons ((cap, ty1), tl) ->
+          | Seq.Cons ((cap, (v, ty1)), tl) ->
             match StrMap.find_opt cap qcap with
               | None -> Error ["binding " ^ cap ^ " is only captured on one branch"]
-              | Some ty2 ->
+              | Some (_, ty2) ->
                 match StrMap.find_opt cap captures with
                   | Some _ -> Error ["repeated capture of " ^ cap]
                   | None ->
                     let rules = S.CnstEq (ctx.fixed_tvars, ty1, ty2) :: rules in
                     let qcap = StrMap.remove cap qcap in
-                    let captures = StrMap.add cap ty1 captures in
+                    let captures = StrMap.add cap (v, ty1) captures in
                     loop tl qcap captures rules ctx in
       loop (StrMap.to_seq pcap) qcap captures rules ctx
 
@@ -449,7 +452,7 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
                 if Core.is_syntactic_value e then monos
                 else T.dangerous_vars ~acc:monos bty in
               if has_annot then
-                let annot = StrMap.find n new_ids in
+                let (_, annot) = StrMap.find n new_ids in
                 let (a, ta) = T.unpeel_quants annot in
                 let rules = S.CnstEq (monos, ta, bty) :: rules in
                 let e = List.fold_left (fun e n -> C.ETyLam (n, e)) e a in
@@ -460,7 +463,15 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
                 let (qs, ctx) = gen ctx (List.filter filterf qs) in
                 let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
                 let e = List.fold_left (fun e n -> C.ETyLam (n, e)) e qs in
-                let new_ids = StrMap.add n qt new_ids in
+
+                let updatef = function
+                  | Some (C.EHole ({ contents = EVar (n, _) } as r), _) ->
+                    (* need to update the original to become polymorphic *)
+                    let foldf q t = C.EApp (t, C.EType (T.TRigid q)) in
+                    r := List.fold_right foldf qs (C.EVar (n, qt));
+                    Some (C.EVar (n, qt), qt)
+                  | _ -> failwith "IMPOSSIBLE RECURSIVE PLACEHOLDER" in
+                let new_ids = StrMap.update n updatef new_ids in
                 loop new_ids ((((n, Z.zero), qt), e) :: acc) rules ctx xs
               else
                 loop new_ids ((((n, Z.zero), bty), e) :: acc) rules ctx xs
@@ -472,7 +483,7 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
         | Ok rules -> generalize rules ctx acc
     end
     | (n, None, defs) :: xs ->
-      let bty = StrMap.find n new_ids in
+      let (_, bty) = StrMap.find n new_ids in
       let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
       eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, false, e) :: acc) rules ctx xs
     | (n, Some _, defs) :: xs ->
@@ -495,7 +506,8 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
     | (n, _, []) :: _ -> Error ["missing implementation for " ^ n]
     | (n, None, _) :: xs ->
       let (bty, ctx) = mk_tvar ctx "" in
-      fill_scope (StrMap.add n bty new_ids) rules ctx xs
+      let new_ids = StrMap.add n (C.EHole (ref (C.EVar ((n, Z.zero), bty))), bty) new_ids in
+      fill_scope new_ids rules ctx xs
     | (n, Some annot, _) :: xs ->
       let* (bty, kind, f, _, ctx) = visit_ast_type true (Some StrMap.empty) ctx annot in
       let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
@@ -503,15 +515,15 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
       let filterf (n, _) = not @@ V.Set.mem n monos in
       let (qs, ctx) = gen ctx (List.filter filterf qs) in
       let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
-      fill_scope (StrMap.add n qt new_ids) (f :: rules) ctx xs in
+      let new_ids = StrMap.add n (C.EVar ((n, Z.zero), qt), qt) new_ids in
+      fill_scope new_ids (f :: rules) ctx xs in
   fill_scope StrMap.empty rules ctx vb
 
 and lookup_var n ty ctx errf =
   match lookup_env n ctx.idenv with
     | None -> Error [errf ()]
-    | Some vty ->
+    | Some (e, vty) ->
       let (ts, instty, ctx) = inst ctx vty in
-      let e = C.EVar ((n, Z.zero), vty) in
       let e = List.fold_left (fun e a -> C.EApp (e, C.EType a)) e ts in
       Ok (e, S.CnstEq (ctx.fixed_tvars, ty, instty), ctx)
 
@@ -702,14 +714,16 @@ let visit_top_expr (ctx : context) (ast : Ast.ast_expr) =
   match S.solve rules with
     | Error e -> Error (List.map S.explain e)
     | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
-    | Ok [] -> Ok (ast, resty, ctx)
+    | Ok [] -> Ok (C.normalize ast, resty, ctx)
 
 let visit_top_defs (ctx : context) (vb : Ast.ast_vdef list) =
   let* (new_ids, acc, rules, ctx) = visit_vdefs true [] ctx vb in
   match S.solve rules with
     | Error e -> Error (List.map S.explain e)
     | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
-    | Ok [] -> Ok (acc, { ctx with idenv = new_ids :: ctx.idenv })
+    | Ok [] ->
+      let mapf (b, i) = (b, C.normalize i) in
+      Ok (List.map mapf acc, { ctx with idenv = new_ids :: ctx.idenv })
 
 let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
   let rec loop rules map ctx = function
@@ -729,7 +743,7 @@ let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
       else loop (S.CnstEq (V.Set.empty, kind, T.TKind) :: f :: rules) next ctx xs in
 
   let* (m, ctx) = loop [] StrMap.empty ctx vb in
-  let s = StrMap.map fst m in
+  let s = StrMap.mapi (fun k (t, _) -> (C.EVar ((k, Z.zero), t), t)) m in
   Ok (m, { ctx with idenv = s :: ctx.idenv })
 
 let visit_top_data (ctx : context) (dats : Ast.ast_data list) =

@@ -11,7 +11,7 @@ This is clearly allowed
   $ GenExpr << "EOF"
   > {let rec loop x = loop x in loop ()}
   > EOF
-  let rec { (loop : (\$6. (\$7. $6 -> $7))) = \ @$6 -> \ @$7 -> \($0 : $6) -> let (x : $6) = ($0 : $6) in (loop : $6 -> $7) (x : $6) } in (loop : (\$6. (\$7. $6 -> $7))) (@()) (@$10) ()
+  let rec { (loop : (\$6. (\$7. $6 -> $7))) = \ @$6 -> \ @$7 -> \($0 : $6) -> let (x : $6) = ($0 : $6) in (loop : (\$6. (\$7. $6 -> $7))) (@$6) (@$7) (x : $6) } in (loop : (\$6. (\$7. $6 -> $7))) (@()) (@$10) ()
   : $10
 
 This is not allowed
