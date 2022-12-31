@@ -49,6 +49,7 @@ type position = {
   colno : int;
 }
 
+let zero_pos : position = { lineno = 0; colno = 0 }
 let dummy_pos : position = { lineno = ~-1; colno = ~-1 }
 
 let output_token ppf = function

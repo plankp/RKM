@@ -102,17 +102,17 @@ and repl_loop tctx venv =
     | Some (lines, _) ->
       let strlen = String.length lines in
       if strlen > 0 && lines.[0] = ':' then
-        let (cmd, lines) =
+        let (init_pos, cmd, lines) =
           match String.index_opt lines ' ' with
-            | None -> (lines, "")
+            | None -> (Parser.zero_pos, lines, "")
             | Some i ->
               let tail = String.sub lines (i + 1) (strlen - i - 1) in
-              (String.sub lines 0 i, tail) in
+              ({ lineno = 0; colno = i + 1 }, String.sub lines 0 i, tail) in
         match cmd with
           | ":q" | ":quit" -> ()
           | ":k" | ":kind" ->
             let lexbuf = Lexing.from_string lines in
-            let result = parse (Parser.annot ~-1) lexbuf in
+            let result = parse ~init_pos (Parser.annot ~-1) lexbuf in
             let () = match result with
               | Error (p, e) ->
                 printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e
@@ -126,7 +126,7 @@ and repl_loop tctx venv =
             repl_loop tctx venv
           | ":t" | ":type" ->
             let lexbuf = Lexing.from_string lines in
-            let result = parse (Parser.expr ~-1) lexbuf in
+            let result = parse ~init_pos (Parser.expr ~-1) lexbuf in
             let () = match result with
               | Error (p, e) ->
                 printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e
