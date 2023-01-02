@@ -20,7 +20,7 @@ type context = {
 type toplevel_analysis =
   | EvalExpr of Core.expr * T.t
   | AddTypes of tkmap
-  | AddGlobl of (Core.name * Core.expr) list
+  | AddGlobl of (V.t * Core.expr) list
   | AddExtern of (T.t * string) StrMap.t
 
 let map_of_list (list : (string * 'a) list) =
@@ -74,11 +74,10 @@ let inst (ctx : context) (t : T.t) : (T.t list * T.t * context) =
   loop [] V.Map.empty ctx t
 
 let gen (ctx : context) (qs : T.tvinfo list) =
-  let foldf (qs, ctx) ((n, _), r) =
+  let foldf (qs, m, ctx) ((n, id), _) =
     let (new_name, ctx) = mk_name ctx n in
-    r := Some (T.TRigid new_name);
-    (new_name :: qs, ctx) in
-  List.fold_left foldf ([], ctx) qs
+    (new_name :: qs, V.Map.add (n, id) (T.TRigid new_name) m, ctx) in
+  List.fold_left foldf ([], V.Map.empty, ctx) qs
 
 let free_ctx (ctx : context) : V.Set.t =
   (* need to collect from both idenv and the tvenv *)
@@ -210,7 +209,7 @@ let visit_pat (ty : T.t) (rules : S.cnst list) (next : tkmap) (ctx : context) (a
       match StrMap.find_opt n captures with
         | Some _ -> Error ["repeated capture of " ^ n]
         | None ->
-          let captures = StrMap.add n (C.EVar ((n, Z.zero), ty), ty) captures in
+          let captures = StrMap.add n (C.EVar (n, Z.zero), ty) captures in
           Ok (p, rules, captures, next, ctx)
     end
 
@@ -385,9 +384,7 @@ and visit_generalized_lam ty rules ctx (mat : (Ast.ast_pat list * Ast.ast_expr) 
           let t = List.fold_right (fun a e -> T.TArr (a, e)) xs ety in
           let rules = S.CnstEq (ctx.fixed_tvars, ty, t) :: rules in
 
-          let foldf (id, acc) ty =
-            let tmp = (("", id), ty) in
-            (Z.succ id, (tmp, ty) :: acc) in
+          let foldf (id, acc) ty = (Z.succ id, (("", id), ty) :: acc) in
           let (id, acc) = List.fold_left foldf (Z.zero, []) xs in
 
           let inputs = List.rev_map (fun (v, ty) -> (C.EVar v, ty)) acc in
@@ -413,28 +410,23 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
                 else T.dangerous_vars ~acc:monos bty in
               if has_annot then
                 let (_, annot) = StrMap.find n new_ids in
-                let (a, ta) = T.unpeel_quants annot in
+                let (_, ta) = T.unpeel_quants annot in
                 let rules = S.CnstEq (monos, ta, bty) :: rules in
-                let e = List.fold_left (fun e n -> C.ETyLam (n, e)) e a in
-                loop new_ids ((((n, Z.zero), annot), e) :: acc) rules ctx xs
+                loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
               else if no_pending then
                 let qs = T.collect_free_tvars bty in
                 let filterf (n, _) = not @@ V.Set.mem n monos in
-                let (qs, ctx) = gen ctx (List.filter filterf qs) in
+                let (qs, m, ctx) = gen ctx (List.filter filterf qs) in
+                let bty = T.subst ~weak:m bty in
                 let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
-                let e = List.fold_left (fun e n -> C.ETyLam (n, e)) e qs in
 
                 let updatef = function
-                  | Some (C.EHole ({ contents = EVar (n, _) } as r), _) ->
-                    (* need to update the original to become polymorphic *)
-                    let foldf q t = C.EApp (t, C.EType (T.TRigid q)) in
-                    r := List.fold_right foldf qs (C.EVar (n, qt));
-                    Some (C.EVar (n, qt), qt)
+                  | Some (t, _) -> Some (t, qt)
                   | _ -> failwith "IMPOSSIBLE RECURSIVE PLACEHOLDER" in
                 let new_ids = StrMap.update n updatef new_ids in
-                loop new_ids ((((n, Z.zero), qt), e) :: acc) rules ctx xs
+                loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
               else
-                loop new_ids ((((n, Z.zero), bty), e) :: acc) rules ctx xs
+                loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
             end else Error ["recursive binding cannot have initializer of this form"] in
         loop new_ids [] rules ctx rbinds in
 
@@ -466,16 +458,17 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
     | (n, _, []) :: _ -> Error ["missing implementation for " ^ n]
     | (n, None, _) :: xs ->
       let (bty, ctx) = mk_tvar ctx "" in
-      let new_ids = StrMap.add n (C.EHole (ref (C.EVar ((n, Z.zero), bty))), bty) new_ids in
+      let new_ids = StrMap.add n (C.EVar (n, Z.zero), bty) new_ids in
       fill_scope new_ids rules ctx xs
     | (n, Some annot, _) :: xs ->
       let* (bty, kind, f, _, ctx) = visit_ast_type true (Some StrMap.empty) ctx annot in
       let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
       let qs = T.collect_free_tvars bty in
       let filterf (n, _) = not @@ V.Set.mem n monos in
-      let (qs, ctx) = gen ctx (List.filter filterf qs) in
+      let (qs, m, ctx) = gen ctx (List.filter filterf qs) in
+      let bty = T.subst ~weak:m bty in
       let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
-      let new_ids = StrMap.add n (C.EVar ((n, Z.zero), qt), qt) new_ids in
+      let new_ids = StrMap.add n (C.EVar (n, Z.zero), qt) new_ids in
       fill_scope new_ids (f :: rules) ctx xs in
   fill_scope StrMap.empty rules ctx vb
 
@@ -483,8 +476,7 @@ and lookup_var n ty ctx errf =
   match lookup_env n ctx.idenv with
     | None -> Error [errf ()]
     | Some (e, vty) ->
-      let (ts, instty, ctx) = inst ctx vty in
-      let e = List.fold_left (fun e a -> C.EApp (e, C.EType a)) e ts in
+      let (_, instty, ctx) = inst ctx vty in
       Ok (e, S.CnstEq (ctx.fixed_tvars, ty, instty), ctx)
 
 and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
@@ -543,7 +535,7 @@ and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
             let e = List.fold_right (fun a e -> C.EApp (e, a)) acc e in
             let resty = List.fold_right (fun a e -> T.TArr (a, e)) remaining resty in
             Ok (e, S.CnstEq (ctx.fixed_tvars, ty, resty) :: rules, ctx)
-          | x :: xs -> promote ((("", id), x) :: lift) (Z.succ id) xs in
+          | _ :: xs -> promote (("", id) :: lift) (Z.succ id) xs in
         promote [] Z.zero xs
       | _ -> Error ["data constructor arity mismatch"] in
     loop [] rules ctx (xs, ys)
@@ -612,7 +604,7 @@ and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
     let rec loop acc rules ctx x = function
       | [] ->
         let* (x, rules, ctx) = visit_expr ty rules ctx x in
-        let foldf e v = C.ELet (NonRec ((("_", Z.zero), T.TTup []), v), e) in
+        let foldf e v = C.ELet (NonRec (("_", Z.zero), v), e) in
         Ok (List.fold_left foldf x acc, rules, ctx)
       | y :: xs ->
         let* (x, rules, ctx) = visit_expr (T.TTup []) rules ctx x in
@@ -626,9 +618,9 @@ and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
     let ctx = { ctx with idenv = List.tl ctx.idenv } in
 
     (* rewrite it into a series of single nonrec lets *)
-    let acc = List.rev_map (fun (((n, _), ty), i) -> (n, ty, i)) acc in
-    let e = List.fold_left (fun e (n, ty, _) -> C.ELet (NonRec (((n, Z.zero), ty), EVar ((n, Z.one), ty)), e)) e acc in
-    let e = List.fold_left (fun e (n, ty, i) -> C.ELet (NonRec (((n, Z.one), ty), i), e)) e acc in
+    let acc = List.rev_map (fun ((n, _), i) -> (n, i)) acc in
+    let e = List.fold_left (fun e (n, _) -> C.ELet (NonRec ((n, Z.zero), EVar (n, Z.one)), e)) e acc in
+    let e = List.fold_left (fun e (n, i) -> C.ELet (NonRec ((n, Z.one), i), e)) e acc in
     Ok (e, rules, ctx)
 
   | Ast.LetRec (vb, e) ->
@@ -648,7 +640,7 @@ and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
       | Error e -> Error (List.map S.explain e)
       | Ok rules ->
         let helper cases = List.map (fun (p, e) -> ([p], e)) cases in
-        let tmp = (("", Z.zero), sty) in
+        let tmp = ("", Z.zero) in
         let e = ConvCase.conv Z.one [C.EVar tmp, sty] (helper cases) in
         Ok (C.ELet (NonRec (tmp, s), e), rules, ctx)
   end
@@ -703,7 +695,7 @@ let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
       else loop (S.CnstEq (V.Set.empty, kind, T.TKind) :: f :: rules) next ctx xs in
 
   let* (m, ctx) = loop [] StrMap.empty ctx vb in
-  let s = StrMap.mapi (fun k (t, _) -> (C.EVar ((k, Z.zero), t), t)) m in
+  let s = StrMap.mapi (fun k (t, _) -> (C.EVar (k, Z.zero), t)) m in
   Ok (m, { ctx with idenv = s :: ctx.idenv })
 
 let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
@@ -712,7 +704,7 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
   let open Type in
   let rec collect_cases rules new_decls new_cases new_aliases ctx = function
     | [] -> begin
-      let normalize t = t |> subst_rigid new_aliases |> normalize in
+      let normalize t = t |> subst ~rigid:new_aliases |> normalize in
       match S.solve rules with
         | Error e -> Error (List.map S.explain e)
         | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
@@ -726,7 +718,8 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
               let (_, k) = StrMap.find n ctx.tctors in
               let t = V.Map.find (n, Z.minus_one) new_aliases |> normalize in
               let qs = collect_free_tvars k in
-              let (qs, ctx) = gen ctx qs in
+              let (qs, m, ctx) = gen ctx qs in
+              let k = subst ~weak:m k in
               let k = List.fold_left (fun k q -> TQuant (q, k)) k qs in
               let tctors = StrMap.add n (t, k) ctx.tctors in
               let new_types = StrMap.add n (t, k) new_types in
@@ -746,7 +739,8 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
                     Hashtbl.filter_map_inplace mapf variant.cases;
 
                     let qs = collect_free_tvars k in
-                    let (qs, ctx) = gen ctx qs in
+                    let (qs, m, ctx) = gen ctx qs in
+                    let k = subst ~weak:m k in
                     let k = List.fold_left (fun k q -> TQuant (q, k)) k qs in
                     let tctors = StrMap.add n (t, k) ctx.tctors in
                     let new_types = StrMap.add n (t, k) new_types in

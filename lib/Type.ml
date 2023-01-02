@@ -153,19 +153,24 @@ let unpeel_quants (t : t) =
     | t -> (acc, t) in
   loop [] t
 
-let rec subst_rigid (map : t V.Map.t) = function
-  | TRigid n as t -> begin
-    match V.Map.find_opt n map with
-      | Some t -> subst_rigid map t
+let rec subst ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
+  | TChr | TStr | TInt | TKind as t -> t
+  | TVar (_, { contents = Some _ }) as t -> subst ~rigid ~weak (unwrap t)
+  | TVar (n, _) as t -> begin
+    match V.Map.find_opt n weak with
+      | Some t -> subst ~rigid ~weak t
       | None -> t
   end
-  | TVar (_, { contents = Some _ }) as t -> subst_rigid map (unwrap t)
-  | TVar _ | TChr | TStr | TInt | TKind as t -> t
-  | TArr (p, q) -> TArr (subst_rigid map p, subst_rigid map q)
-  | TTup xs -> TTup (List.map (subst_rigid map) xs)
-  | TCons (k, xs) -> TCons (k, List.map (subst_rigid map) xs)
-  | TApp (p, q) -> TApp (subst_rigid map p, subst_rigid map q)
-  | TQuant (n, t) -> TQuant (n, subst_rigid (V.Map.remove n map) t)
+  | TRigid n as t -> begin
+    match V.Map.find_opt n rigid with
+      | Some t -> subst ~rigid ~weak t
+      | None -> t
+  end
+  | TArr (p, q) -> TArr (subst ~rigid ~weak p, subst ~rigid ~weak q)
+  | TTup xs -> TTup (List.map (subst ~rigid ~weak) xs)
+  | TCons (k, xs) -> TCons (k, List.map (subst ~rigid ~weak) xs)
+  | TApp (p, q) -> TApp (subst ~rigid ~weak p, subst ~rigid ~weak q)
+  | TQuant (n, t) -> TQuant (n, subst ~weak ~rigid:(V.Map.remove n rigid) t)
 
 let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
   | TRigid n as t -> V.Map.find_opt n map |> Option.value ~default:t

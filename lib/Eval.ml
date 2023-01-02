@@ -50,14 +50,10 @@ let rec unwrap = function
 let ( let* ) = Result.bind
 
 let rec eval (env : env) : Core.expr -> (value, string) result = function
-(* ignore type things for now *)
-  | ETyLam (_, e) -> eval env e
-  | EApp (p, EType _) -> eval env p
-
   | ELit v -> Ok (VLit v)
   | ERaise msg -> Error msg
-  | ELam ((n, _), e) -> Ok (VLam (env, n, e))
-  | EVar (n, _) -> Ok (V.Map.find n env)
+  | ELam (n, e) -> Ok (VLam (env, n, e))
+  | EVar n -> Ok (V.Map.find n env)
 
 (* these ones CAN use undefined values (due to recursive value semantics) *)
   | ETup xs ->
@@ -110,7 +106,7 @@ let rec eval (env : env) : Core.expr -> (value, string) result = function
     loop (unwrap s, cases)
   end
 
-  | EType _ | EHole _ -> failwith "UNHANDLED NODE TO EVAL"
+  | EHole _ -> failwith "UNHANDLED NODE TO EVAL"
 
 and eval_ref_list env list =
   let rec loop acc = function
@@ -120,15 +116,15 @@ and eval_ref_list env list =
       loop (ref x :: acc) xs in
   loop [] list
 
-and augment_env (env : env) ((n, _) : Core.name) (v : value) =
+and augment_env (env : env) (n : V.t) (v : value) =
   V.Map.add n v env
 
-and add_rec_def (env : env) (m : (Core.name * Core.expr) list) : (env, string) result =
+and add_rec_def (env : env) (m : (V.t * Core.expr) list) : (env, string) result =
   let mkcell n env = V.Map.add n (VCell (ref None)) env in
-  let env = List.fold_left (fun env ((n, _), _) -> mkcell n env) env m in
+  let env = List.fold_left (fun env (n, _) -> mkcell n env) env m in
   let rec loop = function
     | [] -> Ok env
-    | ((n, _), i) :: xs ->
+    | (n, i) :: xs ->
       match V.Map.find n env with
         | VCell cell ->
           let* i = eval env i in

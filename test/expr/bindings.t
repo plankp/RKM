@@ -31,19 +31,19 @@
   $ GenExpr << "EOF"
   > {let a = () in a}
   > EOF
-  let (a$1 : ()) = () in let (a : ()) = (a$1 : ()) in (a : ())
+  let a$1 = () in let a = a$1 in a
   : ()
 
   $ GenExpr << "EOF"
   > {let a : (); a = () in a}
   > EOF
-  let (a$1 : ()) = () in let (a : ()) = (a$1 : ()) in (a : ())
+  let a$1 = () in let a = a$1 in a
   : ()
 
   $ GenExpr << "EOF"
   > {let x = 1; y = 2 in let x = y; y = x in (x, y)}
   > EOF
-  let (x$1 : Int) = 1 in let (y$1 : Int) = 2 in let (x : Int) = (x$1 : Int) in let (y : Int) = (y$1 : Int) in let (x$1 : Int) = (y : Int) in let (y$1 : Int) = (x : Int) in let (x : Int) = (x$1 : Int) in let (y : Int) = (y$1 : Int) in ((x : Int), (y : Int))
+  let x$1 = 1 in let y$1 = 2 in let x = x$1 in let y = y$1 in let x$1 = y in let y$1 = x in let x = x$1 in let y = y$1 in (x, y)
   : (Int, Int)
 
   $ GenExpr << "EOF"
@@ -53,5 +53,5 @@
   > in True & False
   > }
   > EOF
-  let ((&)$1 : Bool -> Bool -> Bool) = \($0 : Bool) -> \($1 : Bool) -> match ($0 : Bool) with { True -> match ($1 : Bool) with { True -> (True : Bool); _ -> (False : Bool); }; _ -> (False : Bool); } in let ((&) : Bool -> Bool -> Bool) = ((&)$1 : Bool -> Bool -> Bool) in ((&) : Bool -> Bool -> Bool) (True : Bool) (False : Bool)
+  let (&)$1 = \$0 -> \$1 -> match $0 with { True -> match $1 with { True -> (True : Bool); _ -> (False : Bool); }; _ -> (False : Bool); } in let (&) = (&)$1 in (&) (True : Bool) (False : Bool)
   : Bool

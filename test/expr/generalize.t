@@ -9,7 +9,7 @@ In this case, a is not in the enclosing scope, and therefore, we generalize
   $ GenExpr << "EOF"
   > {\x -> let id : a -> a; id x = x in (id 'v', id "v")}
   > EOF
-  \($0 : $3) -> let (x : $3) = ($0 : $3) in let (id$1 : (\a$8. a$8 -> a$8)) = \ @a$8 -> \($0 : a$8) -> let (x : a$8) = ($0 : a$8) in (x : a$8) in let (id : (\a$8. a$8 -> a$8)) = (id$1 : (\a$8. a$8 -> a$8)) in ((id : (\a$8. a$8 -> a$8)) (@Char) '\u0076', (id : (\a$8. a$8 -> a$8)) (@String) "v")
+  \$0 -> let x = $0 in let id$1 = \$0 -> let x = $0 in x in let id = id$1 in (id '\u0076', id "v")
   : $3 -> (Char, String)
 
 As a consequence, bindings do not introduce new type variables, meaning the
@@ -30,14 +30,14 @@ Without the annotation, it does the right thing (and not generalize)
   $ GenExpr << "EOF"
   > {\x -> let bad xs = x :: xs in bad []}
   > EOF
-  \($0 : $3) -> let (x : $3) = ($0 : $3) in let (bad$1 : [$3] -> [$3]) = \($0 : [$3]) -> let (xs : [$3]) = ($0 : [$3]) in ((::) (x : $3) (xs : [$3]) : [$3]) in let (bad : [$3] -> [$3]) = (bad$1 : [$3] -> [$3]) in (bad : [$3] -> [$3]) ([] : [$3])
+  \$0 -> let x = $0 in let bad$1 = \$0 -> let xs = $0 in ((::) x xs : [$3]) in let bad = bad$1 in bad ([] : [$3])
   : $3 -> [$3]
 
 (or generalize)
   $ GenExpr << "EOF"
   > {let id x = x in (id 'a', id "z")}
   > EOF
-  let (id$1 : (\$5. $5 -> $5)) = \ @$5 -> \($0 : $5) -> let (x : $5) = ($0 : $5) in (x : $5) in let (id : (\$5. $5 -> $5)) = (id$1 : (\$5. $5 -> $5)) in ((id : (\$5. $5 -> $5)) (@Char) '\u0061', (id : (\$5. $5 -> $5)) (@String) "z")
+  let id$1 = \$0 -> let x = $0 in x in let id = id$1 in (id '\u0061', id "z")
   : (Char, String)
 
 As hinted by a previous test case, we make sure the initializers are general
@@ -45,7 +45,7 @@ enough
   $ GenExpr << "EOF"
   > {let p2 : a -> b -> (a, b); p2 x y = (x, y) in p2}
   > EOF
-  let (p2$1 : (\a$9. (\b$10. a$9 -> b$10 -> (a$9, b$10)))) = \ @a$9 -> \ @b$10 -> \($0 : a$9) -> \($1 : b$10) -> let (y : b$10) = ($1 : b$10) in let (x : a$9) = ($0 : a$9) in ((x : a$9), (y : b$10)) in let (p2 : (\a$9. (\b$10. a$9 -> b$10 -> (a$9, b$10)))) = (p2$1 : (\a$9. (\b$10. a$9 -> b$10 -> (a$9, b$10)))) in (p2 : (\a$9. (\b$10. a$9 -> b$10 -> (a$9, b$10)))) (@a$18) (@b$19)
+  let p2$1 = \$0 -> \$1 -> let y = $1 in let x = $0 in (x, y) in let p2 = p2$1 in p2
   : a$18 -> b$19 -> (a$18, b$19)
 
   $ GenExpr << "EOF"
@@ -58,7 +58,7 @@ more general)
   $ GenExpr << "EOF"
   > {let p2 : a -> a -> (a, a); p2 x y = (x, y) in p2}
   > EOF
-  let (p2$1 : (\a$7. a$7 -> a$7 -> (a$7, a$7))) = \ @a$7 -> \($0 : a$7) -> \($1 : a$7) -> let (y : a$7) = ($1 : a$7) in let (x : a$7) = ($0 : a$7) in ((x : a$7), (y : a$7)) in let (p2 : (\a$7. a$7 -> a$7 -> (a$7, a$7))) = (p2$1 : (\a$7. a$7 -> a$7 -> (a$7, a$7))) in (p2 : (\a$7. a$7 -> a$7 -> (a$7, a$7))) (@a$15)
+  let p2$1 = \$0 -> \$1 -> let y = $1 in let x = $0 in (x, y) in let p2 = p2$1 in p2
   : a$15 -> a$15 -> (a$15, a$15)
 
 Underscores do work, essentially they always generalize (but they're not that
@@ -66,7 +66,7 @@ useful because you can refer to them)
   $ GenExpr << "EOF"
   > {let ignore : _ -> (); ignore _ = () in (ignore 'v', ignore "v")}
   > EOF
-  let (ignore$1 : (\_$5. _$5 -> ())) = \ @_$5 -> \($0 : _$5) -> () in let (ignore : (\_$5. _$5 -> ())) = (ignore$1 : (\_$5. _$5 -> ())) in ((ignore : (\_$5. _$5 -> ())) (@Char) '\u0076', (ignore : (\_$5. _$5 -> ())) (@String) "v")
+  let ignore$1 = \$0 -> () in let ignore = ignore$1 in (ignore '\u0076', ignore "v")
   : ((), ())
 
 Another slight annoyance is "value restriction" which means not all things are
@@ -98,7 +98,7 @@ The common cited workaround is to use eta-expansion
   > in (id 'v', id "v")
   > }
   > EOF
-  let (id$1 : (\a$5. a$5 -> a$5)) = \ @a$5 -> \($0 : a$5) -> let (x : a$5) = ($0 : a$5) in (\($0 : a$5 -> a$5) -> let (x : a$5 -> a$5) = ($0 : a$5 -> a$5) in (x : a$5 -> a$5)) (\($0 : a$5) -> let (x : a$5) = ($0 : a$5) in (x : a$5)) (x : a$5) in let (id : (\a$5. a$5 -> a$5)) = (id$1 : (\a$5. a$5 -> a$5)) in ((id : (\a$5. a$5 -> a$5)) (@Char) '\u0076', (id : (\a$5. a$5 -> a$5)) (@String) "v")
+  let id$1 = \$0 -> let x = $0 in (\$0 -> let x = $0 in x) (\$0 -> let x = $0 in x) x in let id = id$1 in (id '\u0076', id "v")
   : (Char, String)
 
 Test case for relaxed value restriction
@@ -111,7 +111,7 @@ Test case for relaxed value restriction
   > tst
   > }
   > EOF
-  let (snd$1 : (\a$7. (\b$8. (a$7, b$8) -> b$8))) = \ @a$7 -> \ @b$8 -> \($0 : (a$7, b$8)) -> match ($0 : (a$7, b$8)) with { (($1 : a$7), ($2 : b$8)) -> let (y : b$8) = ($2 : b$8) in (y : b$8); } in let (snd : (\a$7. (\b$8. (a$7, b$8) -> b$8))) = (snd$1 : (\a$7. (\b$8. (a$7, b$8) -> b$8))) in let (tst$1 : (\a$18. [a$18])) = \ @a$18 -> (snd : (\a$7. (\b$8. (a$7, b$8) -> b$8))) (@String) (@[a$18]) ("", ([] : [a$18])) in let (tst : (\a$18. [a$18])) = (tst$1 : (\a$18. [a$18])) in (tst : (\a$18. [a$18])) (@a$28)
+  let snd$1 = \$0 -> match $0 with { ($1, $2) -> let y = $2 in y; } in let snd = snd$1 in let tst$1 = snd ("", ([] : [a$18])) in let tst = tst$1 in tst
   : [a$28]
 
 Also must examine the polymorphic recursion case. This should not type check.
@@ -135,5 +135,25 @@ But it should after adding explicit type annotations
   > in foo []
   > }
   > EOF
-  let rec { (foo : (\a$6. [a$6] -> ())) = \ @a$6 -> \($0 : [a$6]) -> match ($0 : [a$6]) with { [] -> (foo : (\a$6. [a$6] -> ())) (@Int) ((::) 1 ([] : [Int]) : [Int]); (::) ($1 : a$6) ($2 : [a$6]) -> match ($2 : [a$6]) with { [] -> (foo : (\a$6. [a$6] -> ())) (@String) ((::) "abc" ([] : [String]) : [String]); _ -> let (xs : [a$6]) = ($2 : [a$6]) in (foo : (\a$6. [a$6] -> ())) (@a$6) (xs : [a$6]); }; } } in (foo : (\a$6. [a$6] -> ())) (@a$24) ([] : [a$24])
+  let rec { foo = \$0 -> match $0 with { [] -> foo ((::) 1 ([] : [Int]) : [Int]); (::) $1 $2 -> match $2 with { [] -> foo ((::) "abc" ([] : [String]) : [String]); _ -> let xs = $2 in foo xs; }; } } in foo ([] : [a$24])
+  : ()
+
+Some nasty cases related to using ref-based weak types
+  $ GenKind << "EOF"
+  > type A a = a; B = A
+  > EOF
+  (->) = (->) : * -> * -> *
+  A = (\a. a) : (\$4. $4 -> $4)
+  B = (\a. a) : (\$5. $5 -> $5)
+  Bool = Bool : *
+  Char = Char : *
+  Int = Int : *
+  String = String : *
+  [] = [] : * -> *
+  ref = ref : * -> *
+
+  $ GenExpr << "EOF"
+  > { let rec id x = x; q () = id in () }
+  > EOF
+  let rec { id = \$0 -> let x = $0 in x ; q = \$0 -> match $0 with { () -> id; } } in ()
   : ()

@@ -62,11 +62,11 @@ let proc_toplevel verbose venv = function
         | Seq.Nil ->
           if verbose then printf "(done)\n";
           Ok next_venv
-        | Seq.Cons ((k, (t, n)), xs) ->
+        | Seq.Cons ((k, (_, n)), xs) ->
           match lookup_extf n with
             | None -> Error ("unknown external function " ^ n)
             | Some v ->
-              loop (Eval.augment_env next_venv ((k, Z.zero), t) v) xs in
+              loop (Eval.augment_env next_venv (k, Z.zero) v) xs in
     loop venv (StrMap.to_seq m)
   end
   | EvalExpr (e, t) -> begin

@@ -33,19 +33,19 @@ Just an example of it actually working fine
   >   _ -> 0
   > }
   > EOF
-  let ($0 : [Int]) = ([] : [Int]) in match ($0 : [Int]) with { (::) ($1 : Int) ($2 : [Int]) -> match ($2 : [Int]) with { (::) ($3 : Int) ($4 : [Int]) -> match ($4 : [Int]) with { (::) ($5 : Int) ($6 : [Int]) -> match ($6 : [Int]) with { [] -> let (a : Int) = ($5 : Int) in (a : Int); _ -> 0; }; [] -> let (a : Int) = ($3 : Int) in (a : Int); }; [] -> let (a : Int) = ($1 : Int) in (a : Int); }; _ -> 0; }
+  let $0 = ([] : [Int]) in match $0 with { (::) $1 $2 -> match $2 with { (::) $3 $4 -> match $4 with { (::) $5 $6 -> match $6 with { [] -> let a = $5 in a; _ -> 0; }; [] -> let a = $3 in a; }; [] -> let a = $1 in a; }; _ -> 0; }
   : Int
 
 Make sure scrutinee does not get duplicated (at least when it shouldn't be)
   $ GenExpr << "EOF"
   > {match (\x -> x) (\x -> x) with (a|a) -> ""}
   > EOF
-  let ($0 : $8 -> $8) = (\($0 : $8 -> $8) -> let (x : $8 -> $8) = ($0 : $8 -> $8) in (x : $8 -> $8)) (\($0 : $8) -> let (x : $8) = ($0 : $8) in (x : $8)) in let (a : $8 -> $8) = ($0 : $8 -> $8) in ""
+  let $0 = (\$0 -> let x = $0 in x) (\$0 -> let x = $0 in x) in let a = $0 in ""
   : String
 
 Make sure if all cases are provided, we do not emit a defaulted case
   $ GenExpr << "EOF"
   > {\match True -> "True"; False -> "False"}
   > EOF
-  \($0 : Bool) -> match ($0 : Bool) with { True -> "True"; False -> "False"; }
+  \$0 -> match $0 with { True -> "True"; False -> "False"; }
   : Bool -> String

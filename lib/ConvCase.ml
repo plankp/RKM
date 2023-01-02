@@ -43,7 +43,7 @@ let partition (lenenc : 'a list) (s : 'b list) (m : pat_matrix) =
   let (pivot, m) = row_wise [] [] m in
   (s, pivot, rem, m)
 
-let bind name id ty init body = ELet (NonRec (((name, id), ty), init), body)
+let bind name id init body = ELet (NonRec ((name, id), init), body)
 
 let specialize_tup (s : expr) (xs : Type.t list) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let expansion = lazy (List.map (fun _ -> Ast.Cap None) xs) in
@@ -53,11 +53,11 @@ let specialize_tup (s : expr) (xs : Type.t list) (pivot : Ast.ast_pat list) (m :
     | Ast.Cap None ->
       (List.rev_append (Lazy.force expansion) m, a) :: acc
     | Ast.Cap (Some cap) ->
-      (List.rev_append (Lazy.force expansion) m, bind cap Z.zero (TTup xs) s a) :: acc
+      (List.rev_append (Lazy.force expansion) m, bind cap Z.zero s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
-let specialize_var ((s, ty) : scrut) (k : string) (xs : Type.t list) (pivot : Ast.ast_pat list) (m : pat_matrix) =
+let specialize_var (s : expr) (k : string) (xs : Type.t list) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let expansion = lazy (List.map (fun _ -> Ast.Cap None) xs) in
   let foldf acc (m, a) = function
     | Ast.Decons (t, xs) when t = k ->
@@ -65,22 +65,22 @@ let specialize_var ((s, ty) : scrut) (k : string) (xs : Type.t list) (pivot : As
     | Ast.Cap None ->
       (List.rev_append (Lazy.force expansion) m, a) :: acc
     | Ast.Cap (Some cap) ->
-      (List.rev_append (Lazy.force expansion) m, bind cap Z.zero ty s a) :: acc
+      (List.rev_append (Lazy.force expansion) m, bind cap Z.zero s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
-let specialize_lit ((s, ty) : scrut) (lit : Ast.ast_lit) (pivot : Ast.ast_pat list) (m : pat_matrix) =
+let specialize_lit (s : expr) (lit : Ast.ast_lit) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let foldf acc (m, a) = function
     | Ast.Match v when v = lit -> (m, a) :: acc
     | Ast.Cap None -> (m, a) :: acc
-    | Ast.Cap (Some cap) -> (m, bind cap Z.zero ty s a) :: acc
+    | Ast.Cap (Some cap) -> (m, bind cap Z.zero s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
-let defaulted ((s, ty) : scrut) (pivot : Ast.ast_pat list) (m : pat_matrix) =
+let defaulted (s : expr) (pivot : Ast.ast_pat list) (m : pat_matrix) =
   let foldf acc (m, a) = function
     | Ast.Cap None -> (m, a) :: acc
-    | Ast.Cap (Some cap) -> (m, bind cap Z.zero ty s a) :: acc
+    | Ast.Cap (Some cap) -> (m, bind cap Z.zero s a) :: acc
     | _ -> acc in
   List.fold_left2 foldf [] m pivot |> List.rev
 
@@ -97,8 +97,8 @@ let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
       match search_pivot x with
         | (hd, []) -> begin
           (* first row was all wildcards, we're done *)
-          let foldf action (s, ty) = function
-            | Ast.Cap (Some k) -> bind k Z.zero ty s action
+          let foldf action (s, _) = function
+            | Ast.Cap (Some k) -> bind k Z.zero s action
             | _ -> action in
           List.fold_left2 foldf action s hd
         end
@@ -108,7 +108,7 @@ let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
           match ty with
             | TTup xs ->
               let foldf (id, rem, decons) x =
-                let tmp = (("", id), x) in
+                let tmp = ("", id) in
                 (Z.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
               let (id, rem, decons) = List.fold_left foldf (id, rem, []) xs in
 
@@ -126,7 +126,7 @@ let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
                 | [] ->
                   let tail =
                     if Hashtbl.length remaining = 0 then []
-                    else [PatIgnore, conv id rem (defaulted (s, ty) pivot m)] in
+                    else [PatIgnore, conv id rem (defaulted s pivot m)] in
                   ECase (s, List.rev_append acc tail)
                 | Ast.Decons (k, _) :: xs when Hashtbl.mem remaining k ->
                   let args = Hashtbl.find remaining k in
@@ -134,11 +134,11 @@ let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
                   Hashtbl.remove remaining k;
 
                   let foldf (id, rem, decons) x =
-                    let tmp = (("", id), x) in
+                    let tmp = ("", id) in
                     (Z.succ id, (EVar tmp, x) :: rem, tmp :: decons) in
                   let (id, rem, decons) = List.fold_left foldf (id, rem, []) args in
 
-                  let m = specialize_var (s, ty) k args pivot m in
+                  let m = specialize_var s k args pivot m in
                   let acc = (PatDecons (k, (List.rev decons)), conv id rem m) :: acc in
                   emit_decons_cases acc xs
                 | _ :: xs -> emit_decons_cases acc xs in
@@ -152,12 +152,12 @@ let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
               List.iter iterf pivot;
 
               let foldf lit () cases =
-                let m = specialize_lit (s, ty) lit pivot m in
+                let m = specialize_lit s lit pivot m in
                 (PatLit lit, conv id rem m) :: cases in
 
-              let cases = [PatIgnore, conv id rem (defaulted (s, ty) pivot m)] in
+              let cases = [PatIgnore, conv id rem (defaulted s pivot m)] in
               let cases = Hashtbl.fold foldf listed cases in
               ECase (s, cases)
 
             | _ ->
-              conv id rem (defaulted (s, ty) pivot m)
+              conv id rem (defaulted s pivot m)
