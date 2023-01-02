@@ -2,7 +2,7 @@
   > type A s = () -> s
   >      A s = () -> s
   > EOF
-  Error: duplicate type alias A
+  Error: duplicate type definition A
 
   $ GenKind << "EOF"
   > type A t t = ()

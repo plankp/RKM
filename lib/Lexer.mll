@@ -144,7 +144,6 @@ rule read pos first = parse
   | "with" { (first, pos, movecol pos 4, WITH) }
   | "then" { (first, pos, movecol pos 4, THEN) }
   | "else" { (first, pos, movecol pos 4, ELSE) }
-  | "data" { (first, pos, movecol pos 4, DATA) }
   | "type" { (first, pos, movecol pos 4, TYPE) }
   | "impl" { (first, pos, movecol pos 4, IMPL) }
   | "def" { (first, pos, movecol pos 3, DEF) }

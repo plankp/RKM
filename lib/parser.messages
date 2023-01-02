@@ -1,6 +1,6 @@
 prog: LCURLY RCURLY WITH
 ##
-## Ends in an error in state: 275.
+## Ends in an error in state: 293.
 ##
 ## prog -> LCURLY RCURLY . EOF [ # ]
 ##
@@ -12,7 +12,7 @@ Missing top level element
 
 prog: LCURLY CHAR RCURLY WITH
 ##
-## Ends in an error in state: 317.
+## Ends in an error in state: 311.
 ##
 ## prog -> LCURLY toplevels RCURLY . EOF [ # ]
 ##
@@ -32,27 +32,39 @@ prog: LCURLY TYPE LCURLY WITH
 ## LCURLY
 ##
 
-Missing type alias definitions
+Missing type definitions
 
 prog: LCURLY TYPE LCURLY IDCTOR SEMI
 ##
 ## Ends in an error in state: 4.
 ##
-## aliases -> IDCTOR . list(IDVAR) SET annot SEMI aliases [ RCURLY ]
-## aliases -> IDCTOR . list(IDVAR) SET annot option(SEMI) [ RCURLY ]
+## alias -> IDCTOR . list(IDVAR) SET annot [ SEMI RCURLY ]
+## alias -> IDCTOR . list(IDVAR) SET LCURLY ctors RCURLY [ SEMI RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
 ## IDCTOR
 ##
 
-Incomplete type alias definition
+Incomplete type definition
+
+prog: LCURLY TYPE LCURLY IDCTOR IDVAR SEMI
+##
+## Ends in an error in state: 5.
+##
+## list(IDVAR) -> IDVAR . list(IDVAR) [ SET ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR
+##
+
+Incomplete type definition
 
 prog: LCURLY TYPE LCURLY IDCTOR SET SEMI
 ##
 ## Ends in an error in state: 8.
 ##
-## aliases -> IDCTOR list(IDVAR) SET . annot SEMI aliases [ RCURLY ]
-## aliases -> IDCTOR list(IDVAR) SET . annot option(SEMI) [ RCURLY ]
+## alias -> IDCTOR list(IDVAR) SET . annot [ SEMI RCURLY ]
+## alias -> IDCTOR list(IDVAR) SET . LCURLY ctors RCURLY [ SEMI RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
 ## IDCTOR list(IDVAR) SET
@@ -60,90 +72,66 @@ prog: LCURLY TYPE LCURLY IDCTOR SET SEMI
 
 Missing type expression
 
-prog: LCURLY DATA LCURLY WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY WITH
 ##
-## Ends in an error in state: 293.
+## Ends in an error in state: 31.
 ##
-## block_datas -> LCURLY . datas RCURLY [ SEMI RCURLY ]
-##
-## The known suffix of the stack is as follows:
-## LCURLY
-##
-
-Missing data definitions
-
-prog: LCURLY DATA LCURLY IDCTOR SEMI
-##
-## Ends in an error in state: 294.
-##
-## datas -> IDCTOR . list(IDVAR) SET ctors SEMI datas [ RCURLY ]
-## datas -> IDCTOR . list(IDVAR) SET ctors option(SEMI) [ RCURLY ]
+## alias -> IDCTOR list(IDVAR) SET LCURLY . ctors RCURLY [ SEMI RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
-## IDCTOR
+## IDCTOR list(IDVAR) SET LCURLY
 ##
 
-Incomplete data definition
+Missing data constructor
 
-prog: LCURLY DATA LCURLY IDCTOR SET SEMI
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY IDCTOR SEMI WITH
 ##
-## Ends in an error in state: 296.
+## Ends in an error in state: 47.
 ##
-## datas -> IDCTOR list(IDVAR) SET . ctors SEMI datas [ RCURLY ]
-## datas -> IDCTOR list(IDVAR) SET . ctors option(SEMI) [ RCURLY ]
+## ctors -> IDCTOR list(annot3) SEMI . ctors [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
-## IDCTOR list(IDVAR) SET
+## IDCTOR list(annot3) SEMI
 ##
 
-Missing data constructors
+Incomplete sum type definition
 
-prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR BAR SEMI
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DADD RPAREN SEMI WITH
 ##
-## Ends in an error in state: 301.
+## Ends in an error in state: 50.
 ##
-## ctors -> IDCTOR list(annot3) BAR . ctors [ SEMI RCURLY ]
+## ctors -> dop_name list(annot3) SEMI . ctors [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
-## IDCTOR list(annot3) BAR
+## dop_name list(annot3) SEMI
 ##
 
-Missing another data constructor
+Incomplete sum type definition
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD RPAREN BAR WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN WITH
 ##
-## Ends in an error in state: 304.
+## Ends in an error in state: 32.
 ##
-## ctors -> dop_name list(annot3) BAR . ctors [ SEMI RCURLY ]
-##
-## The known suffix of the stack is as follows:
-## dop_name list(annot3) BAR
-##
-
-Missing another data constructor
-
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN WITH
-##
-## Ends in an error in state: 297.
-##
-## dop_name -> LPAREN . OP_DPRE RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
-## dop_name -> LPAREN . OP_DMUL RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
-## dop_name -> LPAREN . OP_DADD RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
-## dop_name -> LPAREN . OP_DRCN RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
-## dop_name -> LPAREN . OP_DAPP RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
-## dop_name -> LPAREN . OP_DCMP RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN . OP_DPRE RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
+## dop_name -> LPAREN . OP_DMUL RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
+## dop_name -> LPAREN . OP_DADD RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
+## dop_name -> LPAREN . OP_DRCN RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
+## dop_name -> LPAREN . OP_DAPP RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
+## dop_name -> LPAREN . OP_DCMP RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
 ##
 ## The known suffix of the stack is as follows:
 ## LPAREN
 ##
 
-Missing operator name
+Missing data constructor operator name
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DPRE WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DPRE WITH
 ##
-## Ends in an error in state: 298.
+## Ends in an error in state: 35.
 ##
-## dop_name -> LPAREN OP_DPRE . RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN OP_DPRE . RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR ]
 ##
 ## The known suffix of the stack is as follows:
 ## LPAREN OP_DPRE
@@ -151,9 +139,9 @@ prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DPRE WITH
 
 Missing ')'
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DMUL WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DMUL WITH
 ##
-## Ends in an error in state: 71.
+## Ends in an error in state: 37.
 ##
 ## dop_name -> LPAREN OP_DMUL . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
 ##
@@ -163,9 +151,9 @@ prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DMUL WITH
 
 Missing ')'
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DADD WITH
 ##
-## Ends in an error in state: 77.
+## Ends in an error in state: 43.
 ##
 ## dop_name -> LPAREN OP_DADD . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
 ##
@@ -175,9 +163,9 @@ prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD WITH
 
 Missing ')'
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DRCN WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DRCN WITH
 ##
-## Ends in an error in state: 53.
+## Ends in an error in state: 33.
 ##
 ## dop_name -> LPAREN OP_DRCN . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
 ##
@@ -187,9 +175,9 @@ prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DRCN WITH
 
 Missing ')'
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DAPP WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DAPP WITH
 ##
-## Ends in an error in state: 75.
+## Ends in an error in state: 41.
 ##
 ## dop_name -> LPAREN OP_DAPP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
 ##
@@ -199,9 +187,9 @@ prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DAPP WITH
 
 Missing ')'
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DCMP WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DCMP WITH
 ##
-## Ends in an error in state: 73.
+## Ends in an error in state: 39.
 ##
 ## dop_name -> LPAREN OP_DCMP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
 ##
@@ -213,7 +201,7 @@ Missing ')'
 
 prog: LCURLY EXTERN LCURLY WITH
 ##
-## Ends in an error in state: 278.
+## Ends in an error in state: 296.
 ##
 ## block_externs -> LCURLY . externs RCURLY [ SEMI RCURLY ]
 ##
@@ -225,7 +213,7 @@ Missing external definitions
 
 prog: LCURLY EXTERN LCURLY IDVAR WITH
 ##
-## Ends in an error in state: 279.
+## Ends in an error in state: 297.
 ##
 ## externs -> IDVAR . COLON annot SET STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR . COLON annot SET STR option(SEMI) [ RCURLY ]
@@ -238,7 +226,7 @@ Incomplete external definition
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON WITH
 ##
-## Ends in an error in state: 280.
+## Ends in an error in state: 298.
 ##
 ## externs -> IDVAR COLON . annot SET STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON . annot SET STR option(SEMI) [ RCURLY ]
@@ -251,7 +239,7 @@ Missing explicit type annotation
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDVAR WITH
 ##
-## Ends in an error in state: 281.
+## Ends in an error in state: 299.
 ##
 ## externs -> IDVAR COLON annot . SET STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON annot . SET STR option(SEMI) [ RCURLY ]
@@ -270,7 +258,7 @@ Missing '='
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDVAR SET WITH
 ##
-## Ends in an error in state: 282.
+## Ends in an error in state: 300.
 ##
 ## externs -> IDVAR COLON annot SET . STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON annot SET . STR option(SEMI) [ RCURLY ]
@@ -283,7 +271,7 @@ Missing external name of external definition
 
 prog: LCURLY DEF LCURLY WITH
 ##
-## Ends in an error in state: 129.
+## Ends in an error in state: 147.
 ##
 ## block_vbinds -> LCURLY . vbinds RCURLY [ SEMI RCURLY IN ]
 ##
@@ -295,7 +283,7 @@ Missing value definitions
 
 prog: LCURLY DEF LCURLY IDVAR WITH
 ##
-## Ends in an error in state: 146.
+## Ends in an error in state: 164.
 ##
 ## vbind -> IDVAR . COLON annot [ SEMI RCURLY ]
 ## vbind -> IDVAR . list(pat4) SET expr [ SEMI RCURLY ]
@@ -308,7 +296,7 @@ Incomplete value definition
 
 prog: LCURLY DEF LCURLY IDVAR IDVAR WITH
 ##
-## Ends in an error in state: 149.
+## Ends in an error in state: 167.
 ##
 ## list(pat4) -> pat4 . list(pat4) [ SET ]
 ##
@@ -320,7 +308,7 @@ Incomplete value definition
 
 prog: LCURLY DEF LCURLY IDVAR COLON WITH
 ##
-## Ends in an error in state: 147.
+## Ends in an error in state: 165.
 ##
 ## vbind -> IDVAR COLON . annot [ SEMI RCURLY ]
 ##
@@ -332,7 +320,7 @@ Missing explicit type annotation
 
 prog: LCURLY DEF LCURLY IDVAR SET WITH
 ##
-## Ends in an error in state: 152.
+## Ends in an error in state: 170.
 ##
 ## vbind -> IDVAR list(pat4) SET . expr [ SEMI RCURLY ]
 ##
@@ -344,7 +332,7 @@ Missing initializer for value definition
 
 prog: LCURLY DEF LCURLY LPAREN WITH
 ##
-## Ends in an error in state: 130.
+## Ends in an error in state: 148.
 ##
 ## vop_name -> LPAREN . BAR RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
 ## vop_name -> LPAREN . NOT RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
@@ -364,7 +352,7 @@ Missing operator name
 
 prog: LCURLY DEF LCURLY LPAREN BAR WITH
 ##
-## Ends in an error in state: 144.
+## Ends in an error in state: 162.
 ##
 ## vop_name -> LPAREN BAR . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -376,7 +364,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN NOT WITH
 ##
-## Ends in an error in state: 140.
+## Ends in an error in state: 158.
 ##
 ## vop_name -> LPAREN NOT . RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
 ##
@@ -388,7 +376,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN NEG WITH
 ##
-## Ends in an error in state: 142.
+## Ends in an error in state: 160.
 ##
 ## vop_name -> LPAREN NEG . RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
 ##
@@ -400,7 +388,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VPRE WITH
 ##
-## Ends in an error in state: 131.
+## Ends in an error in state: 149.
 ##
 ## vop_name -> LPAREN OP_VPRE . RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
 ##
@@ -412,7 +400,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VMUL WITH
 ##
-## Ends in an error in state: 132.
+## Ends in an error in state: 150.
 ##
 ## vop_name -> LPAREN OP_VMUL . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -424,7 +412,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VADD WITH
 ##
-## Ends in an error in state: 138.
+## Ends in an error in state: 156.
 ##
 ## vop_name -> LPAREN OP_VADD . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -436,7 +424,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VRCN WITH
 ##
-## Ends in an error in state: 123.
+## Ends in an error in state: 141.
 ##
 ## vop_name -> LPAREN OP_VRCN . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -448,7 +436,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VAPP WITH
 ##
-## Ends in an error in state: 136.
+## Ends in an error in state: 154.
 ##
 ## vop_name -> LPAREN OP_VAPP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -460,7 +448,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VCMP WITH
 ##
-## Ends in an error in state: 134.
+## Ends in an error in state: 152.
 ##
 ## vop_name -> LPAREN OP_VCMP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -472,7 +460,7 @@ Missing ')'
 
 prog: LCURLY DEF LCURLY LPAREN OP_VADD RPAREN WITH
 ##
-## Ends in an error in state: 227.
+## Ends in an error in state: 245.
 ##
 ## vbind -> vop_name . COLON annot [ SEMI RCURLY ]
 ## vbind -> vop_name . list(pat4) SET expr [ SEMI RCURLY ]
@@ -485,7 +473,7 @@ Incomplete operator definition
 
 prog: LCURLY DEF LCURLY LPAREN OP_VADD RPAREN COLON WITH
 ##
-## Ends in an error in state: 228.
+## Ends in an error in state: 246.
 ##
 ## vbind -> vop_name COLON . annot [ SEMI RCURLY ]
 ##
@@ -497,7 +485,7 @@ Missing explicit type annotation
 
 prog: LCURLY DEF LCURLY LPAREN OP_VADD RPAREN SET WITH
 ##
-## Ends in an error in state: 231.
+## Ends in an error in state: 249.
 ##
 ## vbind -> vop_name list(pat4) SET . expr [ SEMI RCURLY ]
 ##
@@ -509,7 +497,7 @@ Missing initializer for operator definition
 
 repl_expr: LCURLY WITH
 ##
-## Ends in an error in state: 332.
+## Ends in an error in state: 326.
 ##
 ## repl_expr -> LCURLY . expr RCURLY EOF [ # ]
 ##
@@ -521,7 +509,7 @@ Missing expression
 
 repl_annot: LCURLY WITH
 ##
-## Ends in an error in state: 326.
+## Ends in an error in state: 320.
 ##
 ## repl_annot -> LCURLY . annot RCURLY EOF [ # ]
 ##
@@ -533,7 +521,7 @@ Missing type expression
 
 prog: LCURLY IF SEMI
 ##
-## Ends in an error in state: 156.
+## Ends in an error in state: 174.
 ##
 ## expr4 -> IF . expr option(SEMI) THEN expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -545,7 +533,7 @@ Missing if condition
 
 prog: LCURLY IF IDVAR WITH
 ##
-## Ends in an error in state: 212.
+## Ends in an error in state: 230.
 ##
 ## expr4 -> IF expr . option(SEMI) THEN expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -556,24 +544,24 @@ prog: LCURLY IF IDVAR WITH
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Missing 'then'
 
 prog: LCURLY IF CHAR SEMI WITH
 ##
-## Ends in an error in state: 214.
+## Ends in an error in state: 232.
 ##
 ## expr4 -> IF expr option(SEMI) . THEN expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -585,7 +573,7 @@ Missing 'then'
 
 prog: LCURLY IF IDVAR THEN SEMI
 ##
-## Ends in an error in state: 215.
+## Ends in an error in state: 233.
 ##
 ## expr4 -> IF expr option(SEMI) THEN . expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -597,7 +585,7 @@ Missing then clause
 
 prog: LCURLY IF IDVAR THEN IDVAR WITH
 ##
-## Ends in an error in state: 216.
+## Ends in an error in state: 234.
 ##
 ## expr4 -> IF expr option(SEMI) THEN expr . option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -608,24 +596,24 @@ prog: LCURLY IF IDVAR THEN IDVAR WITH
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Missing 'else'
 
 prog: LCURLY IF CHAR THEN CHAR SEMI WITH
 ##
-## Ends in an error in state: 217.
+## Ends in an error in state: 235.
 ##
 ## expr4 -> IF expr option(SEMI) THEN expr option(SEMI) . ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -637,7 +625,7 @@ Missing 'else'
 
 prog: LCURLY IF IDVAR THEN IDVAR ELSE SEMI
 ##
-## Ends in an error in state: 218.
+## Ends in an error in state: 236.
 ##
 ## expr4 -> IF expr option(SEMI) THEN expr option(SEMI) ELSE . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -649,7 +637,7 @@ Missing else clause
 
 prog: LCURLY LET LCURLY IDVAR SET INT RCURLY WITH
 ##
-## Ends in an error in state: 242.
+## Ends in an error in state: 260.
 ##
 ## expr4 -> LET block_vbinds . IN expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -661,7 +649,7 @@ Missing 'in'
 
 prog: LCURLY LET LCURLY IDVAR SET INT RCURLY IN WITH
 ##
-## Ends in an error in state: 243.
+## Ends in an error in state: 261.
 ##
 ## expr4 -> LET block_vbinds IN . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -673,7 +661,7 @@ Missing scoped expression
 
 prog: LCURLY LET REC LCURLY IDVAR SET INT RCURLY WITH
 ##
-## Ends in an error in state: 239.
+## Ends in an error in state: 257.
 ##
 ## expr4 -> LET REC block_vbinds . IN expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -685,7 +673,7 @@ Missing 'in'
 
 prog: LCURLY LET REC LCURLY IDVAR SET INT RCURLY IN WITH
 ##
-## Ends in an error in state: 240.
+## Ends in an error in state: 258.
 ##
 ## expr4 -> LET REC block_vbinds IN . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -697,7 +685,7 @@ Missing scoped expression
 
 prog: LCURLY SLASH WITH
 ##
-## Ends in an error in state: 39.
+## Ends in an error in state: 68.
 ##
 ## expr4 -> SLASH . nonempty_list(pat4) ARROW expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ## expr4 -> SLASH . MATCH block_cases [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -710,7 +698,7 @@ Missing lambda arguments or 'match'
 
 prog: LCURLY SLASH IDVAR WITH
 ##
-## Ends in an error in state: 62.
+## Ends in an error in state: 88.
 ##
 ## nonempty_list(pat4) -> pat4 . [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
 ## nonempty_list(pat4) -> pat4 . nonempty_list(pat4) [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
@@ -723,7 +711,7 @@ Incomplete lambda expression
 
 prog: LCURLY SLASH IDVAR ARROW WITH
 ##
-## Ends in an error in state: 273.
+## Ends in an error in state: 291.
 ##
 ## expr4 -> SLASH nonempty_list(pat4) ARROW . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -735,7 +723,7 @@ Missing lambda body
 
 prog: LCURLY MATCH WITH
 ##
-## Ends in an error in state: 118.
+## Ends in an error in state: 136.
 ##
 ## expr4 -> MATCH . expr WITH block_cases [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -747,7 +735,7 @@ Missing match scrutinee
 
 prog: LCURLY MATCH IDVAR SEMI
 ##
-## Ends in an error in state: 262.
+## Ends in an error in state: 280.
 ##
 ## expr4 -> MATCH expr . WITH block_cases [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -758,24 +746,24 @@ prog: LCURLY MATCH IDVAR SEMI
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Missing 'with'
 
 prog: LCURLY MATCH IDVAR WITH LCURLY SEMI
 ##
-## Ends in an error in state: 44.
+## Ends in an error in state: 73.
 ##
 ## block_cases -> LCURLY . cases RCURLY [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -787,7 +775,7 @@ Missing match pattern
 
 prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR SEMI
 ##
-## Ends in an error in state: 111.
+## Ends in an error in state: 129.
 ##
 ## cases -> pat . ARROW expr SEMI cases [ RCURLY ]
 ## cases -> pat . ARROW expr option(SEMI) [ RCURLY ]
@@ -799,19 +787,19 @@ prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR SEMI
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 82, spurious reduction of production pat2_add -> pat2_mul
-## In state 86, spurious reduction of production pat2_rcn -> pat2_add
-## In state 79, spurious reduction of production pat2_app -> pat2_rcn
-## In state 95, spurious reduction of production pat2_cmp -> pat2_app
-## In state 91, spurious reduction of production pat2 -> pat2_cmp
-## In state 97, spurious reduction of production pat -> pat2
+## In state 100, spurious reduction of production pat2_add -> pat2_mul
+## In state 104, spurious reduction of production pat2_rcn -> pat2_add
+## In state 97, spurious reduction of production pat2_app -> pat2_rcn
+## In state 113, spurious reduction of production pat2_cmp -> pat2_app
+## In state 109, spurious reduction of production pat2 -> pat2_cmp
+## In state 115, spurious reduction of production pat -> pat2
 ##
 
 Missing '->'
 
 prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR ARROW SEMI
 ##
-## Ends in an error in state: 112.
+## Ends in an error in state: 130.
 ##
 ## cases -> pat ARROW . expr SEMI cases [ RCURLY ]
 ## cases -> pat ARROW . expr option(SEMI) [ RCURLY ]
@@ -824,7 +812,7 @@ Missing pattern action
 
 prog: LCURLY INT COLON SEMI
 ##
-## Ends in an error in state: 210.
+## Ends in an error in state: 228.
 ##
 ## expr -> expr2 COLON . annot [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -836,7 +824,7 @@ Missing type annotation
 
 prog: LCURLY SLASH MATCH LCURLY INT COLON SEMI
 ##
-## Ends in an error in state: 98.
+## Ends in an error in state: 116.
 ##
 ## pat -> pat2 COLON . annot [ RSQUARE RPAREN COMMA ARROW ]
 ##
@@ -860,7 +848,7 @@ Missing function return type
 
 prog: LCURLY INT SET SEMI
 ##
-## Ends in an error in state: 196.
+## Ends in an error in state: 214.
 ##
 ## expr2 -> expr2_or SET . expr2 [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -872,7 +860,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OR SEMI
 ##
-## Ends in an error in state: 207.
+## Ends in an error in state: 225.
 ##
 ## expr2_or -> expr2_or OR . expr2_and [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -884,7 +872,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT AND SEMI
 ##
-## Ends in an error in state: 204.
+## Ends in an error in state: 222.
 ##
 ## expr2_and -> expr2_and AND . expr2_cmp [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -896,7 +884,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_VCMP SEMI
 ##
-## Ends in an error in state: 198.
+## Ends in an error in state: 216.
 ##
 ## expr2_cmp -> expr2_cmp OP_VCMP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -908,7 +896,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_DCMP SEMI
 ##
-## Ends in an error in state: 200.
+## Ends in an error in state: 218.
 ##
 ## expr2_cmp -> expr2_cmp OP_DCMP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -920,7 +908,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_VAPP SEMI
 ##
-## Ends in an error in state: 170.
+## Ends in an error in state: 188.
 ##
 ## expr2_app -> expr2_rcn OP_VAPP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -932,7 +920,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_DAPP SEMI
 ##
-## Ends in an error in state: 193.
+## Ends in an error in state: 211.
 ##
 ## expr2_app -> expr2_rcn OP_DAPP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -944,7 +932,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_VRCN SEMI
 ##
-## Ends in an error in state: 181.
+## Ends in an error in state: 199.
 ##
 ## expr2_rcn -> expr2_add OP_VRCN . expr2_rcn [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -956,7 +944,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_DRCN SEMI
 ##
-## Ends in an error in state: 185.
+## Ends in an error in state: 203.
 ##
 ## expr2_rcn -> expr2_add OP_DRCN . expr2_rcn [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -968,7 +956,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT BAR SEMI
 ##
-## Ends in an error in state: 191.
+## Ends in an error in state: 209.
 ##
 ## expr2_add -> expr2_add BAR . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -980,7 +968,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT NEG WITH
 ##
-## Ends in an error in state: 189.
+## Ends in an error in state: 207.
 ##
 ## expr2_add -> expr2_add NEG . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -992,7 +980,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_VADD SEMI
 ##
-## Ends in an error in state: 183.
+## Ends in an error in state: 201.
 ##
 ## expr2_add -> expr2_add OP_VADD . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1004,7 +992,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_DADD SEMI
 ##
-## Ends in an error in state: 187.
+## Ends in an error in state: 205.
 ##
 ## expr2_add -> expr2_add OP_DADD . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1016,7 +1004,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_VMUL SEMI
 ##
-## Ends in an error in state: 173.
+## Ends in an error in state: 191.
 ##
 ## expr2_mul -> expr2_mul OP_VMUL . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1028,7 +1016,7 @@ Missing rhs of binary operator
 
 prog: LCURLY INT OP_DMUL SEMI
 ##
-## Ends in an error in state: 177.
+## Ends in an error in state: 195.
 ##
 ## expr2_mul -> expr2_mul OP_DMUL . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1040,7 +1028,7 @@ Missing rhs of binary operator
 
 prog: LCURLY OP_VPRE SEMI
 ##
-## Ends in an error in state: 114.
+## Ends in an error in state: 132.
 ##
 ## expr2_prefix -> OP_VPRE . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1052,7 +1040,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY OP_DPRE SEMI
 ##
-## Ends in an error in state: 115.
+## Ends in an error in state: 133.
 ##
 ## expr2_prefix -> OP_DPRE . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1064,7 +1052,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY NOT SEMI
 ##
-## Ends in an error in state: 116.
+## Ends in an error in state: 134.
 ##
 ## expr2_prefix -> NOT . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1076,7 +1064,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY NEG SEMI
 ##
-## Ends in an error in state: 117.
+## Ends in an error in state: 135.
 ##
 ## expr2_prefix -> NEG . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1088,7 +1076,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY LPAREN OP_VPRE SEMI
 ##
-## Ends in an error in state: 125.
+## Ends in an error in state: 143.
 ##
 ## expr2_prefix -> OP_VPRE . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
 ## vop_name -> LPAREN OP_VPRE . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -1101,7 +1089,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY LPAREN OP_DPRE SEMI
 ##
-## Ends in an error in state: 246.
+## Ends in an error in state: 264.
 ##
 ## dop_name -> LPAREN OP_DPRE . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ## expr2_prefix -> OP_DPRE . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
@@ -1114,7 +1102,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY LPAREN NOT SEMI
 ##
-## Ends in an error in state: 248.
+## Ends in an error in state: 266.
 ##
 ## expr2_prefix -> NOT . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
 ## vop_name -> LPAREN NOT . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -1127,7 +1115,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY LPAREN NEG SEMI
 ##
-## Ends in an error in state: 250.
+## Ends in an error in state: 268.
 ##
 ## expr2_prefix -> NEG . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
 ## vop_name -> LPAREN NEG . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -1140,7 +1128,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY INT BAR SEMI
 ##
-## Ends in an error in state: 94.
+## Ends in an error in state: 112.
 ##
 ## pat2 -> pat2_cmp BAR . pat2 [ RSQUARE RPAREN COMMA COLON ARROW ]
 ##
@@ -1152,7 +1140,7 @@ Missing alternate pattern
 
 prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DCMP SEMI
 ##
-## Ends in an error in state: 92.
+## Ends in an error in state: 110.
 ##
 ## pat2_cmp -> pat2_cmp OP_DCMP . pat2_app [ RSQUARE RPAREN OP_DCMP COMMA COLON BAR ARROW ]
 ##
@@ -1164,7 +1152,7 @@ Missing rhs of binary operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DAPP SEMI
 ##
-## Ends in an error in state: 80.
+## Ends in an error in state: 98.
 ##
 ## pat2_app -> pat2_rcn OP_DAPP . pat2_app [ RSQUARE RPAREN OP_DCMP COMMA COLON BAR ARROW ]
 ##
@@ -1176,7 +1164,7 @@ Missing rhs of binary operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DRCN SEMI
 ##
-## Ends in an error in state: 87.
+## Ends in an error in state: 105.
 ##
 ## pat2_rcn -> pat2_add OP_DRCN . pat2_rcn [ RSQUARE RPAREN OP_DCMP OP_DAPP COMMA COLON BAR ARROW ]
 ##
@@ -1188,7 +1176,7 @@ Missing rhs of binary operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DADD SEMI
 ##
-## Ends in an error in state: 89.
+## Ends in an error in state: 107.
 ##
 ## pat2_add -> pat2_add OP_DADD . pat2_mul [ RSQUARE RPAREN OP_DRCN OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
 ##
@@ -1200,7 +1188,7 @@ Missing rhs of binary operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DMUL SEMI
 ##
-## Ends in an error in state: 83.
+## Ends in an error in state: 101.
 ##
 ## pat2_mul -> pat2_mul OP_DMUL . pat2_prefix [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
 ##
@@ -1212,7 +1200,7 @@ Missing rhs of binary operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY NEG SEMI
 ##
-## Ends in an error in state: 49.
+## Ends in an error in state: 78.
 ##
 ## pat2_prefix -> NEG . INT [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
 ##
@@ -1224,7 +1212,7 @@ Missing numeric literal
 
 prog: LCURLY MATCH IDVAR WITH LCURLY OP_DPRE SEMI
 ##
-## Ends in an error in state: 48.
+## Ends in an error in state: 77.
 ##
 ## pat2_prefix -> OP_DPRE . pat2_prefix [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
 ##
@@ -1236,7 +1224,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN OP_DPRE SEMI
 ##
-## Ends in an error in state: 55.
+## Ends in an error in state: 82.
 ##
 ## dop_name -> LPAREN OP_DPRE . RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
 ## pat2_prefix -> OP_DPRE . pat2_prefix [ RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ]
@@ -1249,7 +1237,7 @@ Missing rhs of prefix operator
 
 prog: LCURLY LSQUARE SEMI
 ##
-## Ends in an error in state: 119.
+## Ends in an error in state: 137.
 ##
 ## expr4 -> LSQUARE . RSQUARE [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ## expr4 -> LSQUARE . list_expr(RSQUARE) RSQUARE [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -1262,7 +1250,7 @@ Incomplete list
 
 prog: LCURLY LSQUARE IDVAR SEMI
 ##
-## Ends in an error in state: 259.
+## Ends in an error in state: 277.
 ##
 ## list_expr(RSQUARE) -> expr . COMMA list_expr(RSQUARE) [ RSQUARE ]
 ## list_expr(RSQUARE) -> expr . [ RSQUARE ]
@@ -1274,24 +1262,24 @@ prog: LCURLY LSQUARE IDVAR SEMI
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Incomplete list
 
 prog: LCURLY LSQUARE IDVAR COMMA SEMI
 ##
-## Ends in an error in state: 260.
+## Ends in an error in state: 278.
 ##
 ## list_expr(RSQUARE) -> expr COMMA . list_expr(RSQUARE) [ RSQUARE ]
 ##
@@ -1303,7 +1291,7 @@ Missing another list element
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE SEMI
 ##
-## Ends in an error in state: 46.
+## Ends in an error in state: 75.
 ##
 ## pat4 -> LSQUARE . RSQUARE [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
 ## pat4 -> LSQUARE . list_pat(RSQUARE) RSQUARE [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
@@ -1316,7 +1304,7 @@ Incomplete list pattern
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE IDVAR SEMI
 ##
-## Ends in an error in state: 105.
+## Ends in an error in state: 123.
 ##
 ## list_pat(RSQUARE) -> pat . COMMA list_pat(RSQUARE) [ RSQUARE ]
 ## list_pat(RSQUARE) -> pat . [ RSQUARE ]
@@ -1328,19 +1316,19 @@ prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE IDVAR SEMI
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 82, spurious reduction of production pat2_add -> pat2_mul
-## In state 86, spurious reduction of production pat2_rcn -> pat2_add
-## In state 79, spurious reduction of production pat2_app -> pat2_rcn
-## In state 95, spurious reduction of production pat2_cmp -> pat2_app
-## In state 91, spurious reduction of production pat2 -> pat2_cmp
-## In state 97, spurious reduction of production pat -> pat2
+## In state 100, spurious reduction of production pat2_add -> pat2_mul
+## In state 104, spurious reduction of production pat2_rcn -> pat2_add
+## In state 97, spurious reduction of production pat2_app -> pat2_rcn
+## In state 113, spurious reduction of production pat2_cmp -> pat2_app
+## In state 109, spurious reduction of production pat2 -> pat2_cmp
+## In state 115, spurious reduction of production pat -> pat2
 ##
 
 Incomplete list pattern
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE IDVAR COMMA SEMI
 ##
-## Ends in an error in state: 106.
+## Ends in an error in state: 124.
 ##
 ## list_pat(RSQUARE) -> pat COMMA . list_pat(RSQUARE) [ RSQUARE ]
 ##
@@ -1352,7 +1340,7 @@ Missing another list element
 
 prog: LCURLY LPAREN SEMI
 ##
-## Ends in an error in state: 121.
+## Ends in an error in state: 139.
 ##
 ## dop_name -> LPAREN . OP_DPRE RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ## dop_name -> LPAREN . OP_DMUL RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -1380,7 +1368,7 @@ Incomplete parenthesized expression
 
 prog: LCURLY LPAREN IDVAR SEMI
 ##
-## Ends in an error in state: 254.
+## Ends in an error in state: 272.
 ##
 ## list_expr(RPAREN) -> expr . COMMA list_expr(RPAREN) [ RPAREN ]
 ## list_expr(RPAREN) -> expr . [ RPAREN ]
@@ -1392,24 +1380,24 @@ prog: LCURLY LPAREN IDVAR SEMI
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Incomplete parenthesized expression
 
 prog: LCURLY LPAREN IDVAR COMMA SEMI
 ##
-## Ends in an error in state: 255.
+## Ends in an error in state: 273.
 ##
 ## list_expr(RPAREN) -> expr COMMA . list_expr(RPAREN) [ RPAREN ]
 ##
@@ -1421,7 +1409,7 @@ Missing another tuple element
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN SEMI
 ##
-## Ends in an error in state: 51.
+## Ends in an error in state: 80.
 ##
 ## dop_name -> LPAREN . OP_DPRE RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
 ## dop_name -> LPAREN . OP_DMUL RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
@@ -1440,7 +1428,7 @@ Incomplete parenthesized pattern
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN IDVAR SEMI
 ##
-## Ends in an error in state: 100.
+## Ends in an error in state: 118.
 ##
 ## list_pat(RPAREN) -> pat . COMMA list_pat(RPAREN) [ RPAREN ]
 ## list_pat(RPAREN) -> pat . [ RPAREN ]
@@ -1452,19 +1440,19 @@ prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN IDVAR SEMI
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 82, spurious reduction of production pat2_add -> pat2_mul
-## In state 86, spurious reduction of production pat2_rcn -> pat2_add
-## In state 79, spurious reduction of production pat2_app -> pat2_rcn
-## In state 95, spurious reduction of production pat2_cmp -> pat2_app
-## In state 91, spurious reduction of production pat2 -> pat2_cmp
-## In state 97, spurious reduction of production pat -> pat2
+## In state 100, spurious reduction of production pat2_add -> pat2_mul
+## In state 104, spurious reduction of production pat2_rcn -> pat2_add
+## In state 97, spurious reduction of production pat2_app -> pat2_rcn
+## In state 113, spurious reduction of production pat2_cmp -> pat2_app
+## In state 109, spurious reduction of production pat2 -> pat2_cmp
+## In state 115, spurious reduction of production pat -> pat2
 ##
 
 Incomplete parenthesized pattern
 
 prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN IDVAR COMMA SEMI
 ##
-## Ends in an error in state: 101.
+## Ends in an error in state: 119.
 ##
 ## list_pat(RPAREN) -> pat COMMA . list_pat(RPAREN) [ RPAREN ]
 ##
@@ -1577,7 +1565,7 @@ Incomplete program
 
 prog: LCURLY IDVAR SEMI EOF
 ##
-## Ends in an error in state: 320.
+## Ends in an error in state: 314.
 ##
 ## option(SEMI) -> SEMI . [ RCURLY ]
 ## toplevels -> toplevel SEMI . toplevels [ RCURLY ]
@@ -1590,7 +1578,7 @@ Incomplete program
 
 prog: LCURLY LCURLY SEMI
 ##
-## Ends in an error in state: 153.
+## Ends in an error in state: 171.
 ##
 ## expr4 -> LCURLY . RCURLY [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ## expr4 -> LCURLY . exprs RCURLY [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
@@ -1603,7 +1591,7 @@ Incomplete sequential expression
 
 prog: LCURLY LCURLY IDVAR DEF
 ##
-## Ends in an error in state: 222.
+## Ends in an error in state: 240.
 ##
 ## exprs -> expr . SEMI exprs [ RCURLY ]
 ## exprs -> expr . option(SEMI) [ RCURLY ]
@@ -1615,24 +1603,24 @@ prog: LCURLY LCURLY IDVAR DEF
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Incomplete sequential expression
 
 prog: LCURLY LCURLY IDVAR SEMI DEF
 ##
-## Ends in an error in state: 223.
+## Ends in an error in state: 241.
 ##
 ## exprs -> expr SEMI . exprs [ RCURLY ]
 ## option(SEMI) -> SEMI . [ RCURLY ]
@@ -1645,7 +1633,7 @@ Incomplete sequential expression
 
 prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR ARROW IDVAR DEF
 ##
-## Ends in an error in state: 265.
+## Ends in an error in state: 283.
 ##
 ## cases -> pat ARROW expr . SEMI cases [ RCURLY ]
 ## cases -> pat ARROW expr . option(SEMI) [ RCURLY ]
@@ -1657,56 +1645,57 @@ prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR ARROW IDVAR DEF
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Incomplete match pattern
 
 prog: LCURLY TYPE LCURLY IDCTOR SET IDCTOR WITH
 ##
-## Ends in an error in state: 31.
+## Ends in an error in state: 62.
 ##
-## aliases -> IDCTOR list(IDVAR) SET annot . SEMI aliases [ RCURLY ]
-## aliases -> IDCTOR list(IDVAR) SET annot . option(SEMI) [ RCURLY ]
+## aliases -> alias . SEMI aliases [ RCURLY ]
+## aliases -> alias . option(SEMI) [ RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
-## IDCTOR list(IDVAR) SET annot
+## alias
 ##
 ## WARNING: This example involves spurious reductions.
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
 ## In state 22, spurious reduction of production annot -> annot2
+## In state 59, spurious reduction of production alias -> IDCTOR list(IDVAR) SET annot
 ##
 
-Incomplete type alias definition
+Incomplete type definition
 
 prog: LCURLY TYPE LCURLY IDCTOR SET IDCTOR SEMI WITH
 ##
-## Ends in an error in state: 32.
+## Ends in an error in state: 63.
 ##
-## aliases -> IDCTOR list(IDVAR) SET annot SEMI . aliases [ RCURLY ]
+## aliases -> alias SEMI . aliases [ RCURLY ]
 ## option(SEMI) -> SEMI . [ RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
-## IDCTOR list(IDVAR) SET annot SEMI
+## alias SEMI
 ##
 
-Incomplete type alias definition
+Incomplete type definition
 
 prog: LCURLY DEF LCURLY IDVAR COLON IDCTOR AND
 ##
-## Ends in an error in state: 235.
+## Ends in an error in state: 253.
 ##
 ## vbinds -> vbind . SEMI vbinds [ RCURLY ]
 ## vbinds -> vbind . option(SEMI) [ RCURLY ]
@@ -1719,14 +1708,14 @@ prog: LCURLY DEF LCURLY IDVAR COLON IDCTOR AND
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
 ## In state 22, spurious reduction of production annot -> annot2
-## In state 148, spurious reduction of production vbind -> IDVAR COLON annot
+## In state 166, spurious reduction of production vbind -> IDVAR COLON annot
 ##
 
 Incomplete value definition
 
 prog: LCURLY DEF LCURLY IDVAR SET CHAR SEMI WITH
 ##
-## Ends in an error in state: 236.
+## Ends in an error in state: 254.
 ##
 ## option(SEMI) -> SEMI . [ RCURLY ]
 ## vbinds -> vbind SEMI . vbinds [ RCURLY ]
@@ -1739,7 +1728,7 @@ Incomplete value definition
 
 prog: LCURLY SLASH MATCH LCURLY CHAR ARROW CHAR SEMI WITH
 ##
-## Ends in an error in state: 266.
+## Ends in an error in state: 284.
 ##
 ## cases -> pat ARROW expr SEMI . cases [ RCURLY ]
 ## option(SEMI) -> SEMI . [ RCURLY ]
@@ -1752,7 +1741,7 @@ Incomplete match patterns
 
 prog: LCURLY SLASH CHAR RSQUARE
 ##
-## Ends in an error in state: 272.
+## Ends in an error in state: 290.
 ##
 ## expr4 -> SLASH nonempty_list(pat4) . ARROW expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
 ##
@@ -1763,14 +1752,14 @@ prog: LCURLY SLASH CHAR RSQUARE
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 62, spurious reduction of production nonempty_list(pat4) -> pat4
+## In state 88, spurious reduction of production nonempty_list(pat4) -> pat4
 ##
 
 Incomplete lambda expression
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR WITH
 ##
-## Ends in an error in state: 283.
+## Ends in an error in state: 301.
 ##
 ## externs -> IDVAR COLON annot SET STR . SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON annot SET STR . option(SEMI) [ RCURLY ]
@@ -1783,7 +1772,7 @@ Incomplete external definition
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR SEMI WITH
 ##
-## Ends in an error in state: 284.
+## Ends in an error in state: 302.
 ##
 ## externs -> IDVAR COLON annot SET STR SEMI . externs [ RCURLY ]
 ## option(SEMI) -> SEMI . [ RCURLY ]
@@ -1794,60 +1783,47 @@ prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR SEMI WITH
 
 Incomplete external definition
 
-prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY IDCTOR WITH
 ##
-## Ends in an error in state: 299.
+## Ends in an error in state: 45.
 ##
-## ctors -> IDCTOR . list(annot3) BAR ctors [ SEMI RCURLY ]
-## ctors -> IDCTOR . list(annot3) [ SEMI RCURLY ]
+## ctors -> IDCTOR . list(annot3) SEMI ctors [ RCURLY ]
+## ctors -> IDCTOR . list(annot3) option(SEMI) [ RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
 ## IDCTOR
 ##
 
-Incomplete data definition
+Incomplete sum type definition
 
-prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD RPAREN WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY LPAREN OP_DADD RPAREN WITH
 ##
-## Ends in an error in state: 302.
+## Ends in an error in state: 48.
 ##
-## ctors -> dop_name . list(annot3) BAR ctors [ SEMI RCURLY ]
-## ctors -> dop_name . list(annot3) [ SEMI RCURLY ]
+## ctors -> dop_name . list(annot3) SEMI ctors [ RCURLY ]
+## ctors -> dop_name . list(annot3) option(SEMI) [ RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
 ## dop_name
 ##
 
-Incomplete data definition
+Incomplete sum type definition
 
-prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR IDCTOR WITH
+prog: LCURLY TYPE LCURLY IDCTOR SET LCURLY IDCTOR IDCTOR WITH
 ##
-## Ends in an error in state: 306.
+## Ends in an error in state: 53.
 ##
-## list(annot3) -> annot3 . list(annot3) [ SEMI RCURLY BAR ]
+## list(annot3) -> annot3 . list(annot3) [ SEMI RCURLY ]
 ##
 ## The known suffix of the stack is as follows:
 ## annot3
 ##
 
-Incomplete data definition
-
-prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR SEMI WITH
-##
-## Ends in an error in state: 310.
-##
-## datas -> IDCTOR list(IDVAR) SET ctors SEMI . datas [ RCURLY ]
-## option(SEMI) -> SEMI . [ RCURLY ]
-##
-## The known suffix of the stack is as follows:
-## IDCTOR list(IDVAR) SET ctors SEMI
-##
-
-Incomplete data definition
+Incomplete sum type definition
 
 prog: LCURLY CHAR UNDERSCORE
 ##
-## Ends in an error in state: 319.
+## Ends in an error in state: 313.
 ##
 ## toplevels -> toplevel . SEMI toplevels [ RCURLY ]
 ## toplevels -> toplevel . option(SEMI) [ RCURLY ]
@@ -1859,25 +1835,25 @@ prog: LCURLY CHAR UNDERSCORE
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
-## In state 322, spurious reduction of production toplevel -> expr
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
+## In state 316, spurious reduction of production toplevel -> expr
 ##
 
 Unexpected trailing token after a completed top level element
 
 repl_annot: WITH
 ##
-## Ends in an error in state: 325.
+## Ends in an error in state: 319.
 ##
 ## repl_annot' -> . repl_annot [ # ]
 ##
@@ -1889,7 +1865,7 @@ Missing type expression
 
 repl_annot: LCURLY IDCTOR WITH
 ##
-## Ends in an error in state: 327.
+## Ends in an error in state: 321.
 ##
 ## repl_annot -> LCURLY annot . RCURLY EOF [ # ]
 ##
@@ -1907,7 +1883,7 @@ Unexpected trailing token after a completed type expression
 
 repl_expr: WITH
 ##
-## Ends in an error in state: 331.
+## Ends in an error in state: 325.
 ##
 ## repl_expr' -> . repl_expr [ # ]
 ##
@@ -1919,7 +1895,7 @@ Missing expression
 
 repl_expr: LCURLY CHAR WITH
 ##
-## Ends in an error in state: 333.
+## Ends in an error in state: 327.
 ##
 ## repl_expr -> LCURLY expr . RCURLY EOF [ # ]
 ##
@@ -1930,17 +1906,17 @@ repl_expr: LCURLY CHAR WITH
 ## This implies that, although the LR(1) items shown above provide an
 ## accurate view of the past (what has been recognized so far), they
 ## may provide an INCOMPLETE view of the future (what was expected next).
-## In state 166, spurious reduction of production expr3 -> expr4
-## In state 168, spurious reduction of production expr2_prefix -> expr3
-## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
-## In state 172, spurious reduction of production expr2_add -> expr2_mul
-## In state 180, spurious reduction of production expr2_rcn -> expr2_add
-## In state 169, spurious reduction of production expr2_app -> expr2_rcn
-## In state 202, spurious reduction of production expr2_cmp -> expr2_app
-## In state 197, spurious reduction of production expr2_and -> expr2_cmp
-## In state 203, spurious reduction of production expr2_or -> expr2_and
-## In state 195, spurious reduction of production expr2 -> expr2_or
-## In state 209, spurious reduction of production expr -> expr2
+## In state 184, spurious reduction of production expr3 -> expr4
+## In state 186, spurious reduction of production expr2_prefix -> expr3
+## In state 189, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 190, spurious reduction of production expr2_add -> expr2_mul
+## In state 198, spurious reduction of production expr2_rcn -> expr2_add
+## In state 187, spurious reduction of production expr2_app -> expr2_rcn
+## In state 220, spurious reduction of production expr2_cmp -> expr2_app
+## In state 215, spurious reduction of production expr2_and -> expr2_cmp
+## In state 221, spurious reduction of production expr2_or -> expr2_and
+## In state 213, spurious reduction of production expr2 -> expr2_or
+## In state 227, spurious reduction of production expr -> expr2
 ##
 
 Unexpected trailing token after a completed expression

@@ -67,7 +67,7 @@ let abstrtok_seq init_pos lexbuf =
         end
 
         (* these ones are always followed by a block *)
-        | DEF | EXTERN | TYPE | DATA | WITH ->
+        | DEF | EXTERN | TYPE | WITH ->
           Seq.Cons (p1, loop endp pending true)
 
         (* these ones are never blocks *)

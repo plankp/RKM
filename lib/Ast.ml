@@ -5,7 +5,6 @@ type ast_toplevel =
   | TopDef of ast_vdef list
   | TopExtern of ast_extern list
   | TopAlias of ast_alias list
-  | TopData of ast_data list
 
 and ast_expr =
   | Var of string
@@ -49,10 +48,8 @@ and ast_extern =
   string * ast_typ * string
 
 and ast_alias =
-  string * string list * ast_typ
-
-and ast_data =
-  string * string list * (string * ast_typ list) list
+  | DefAlias of string * string list * ast_typ
+  | DefData of string * string list * (string * ast_typ list) list
 
 and ast_lit =
   | LitInt of Z.t
@@ -79,23 +76,8 @@ let rec output_top ppf = function
     List.iter iterf vb;
     output_string ppf " }"
   | TopAlias vb ->
-    let iterf (n, args, t) =
-      fprintf ppf " %s" n;
-      List.iter (fprintf ppf " %s") args;
-      fprintf ppf " = %a;" output_typ t in
     output_string ppf "type {";
-    List.iter iterf vb;
-    output_string ppf " }"
-  | TopData vb ->
-    let iterf (n, args, ctors) =
-      fprintf ppf " %s" n;
-      List.iter (fprintf ppf " %s") args;
-      let helper ppf (n, args) =
-        fprintf ppf "%s" n;
-        List.iter (fprintf ppf " %a" output_typ) args in
-      fprintf ppf " = %a;" (output_list ~s:" |" helper) ctors in
-    output_string ppf "data {";
-    List.iter iterf vb;
+    List.iter (fprintf ppf " %a;" output_alias) vb;
     output_string ppf " }"
 
 and output_expr ppf = function
@@ -171,6 +153,19 @@ and output_vdef ppf = function
     fprintf ppf " = %a" output_expr e
   | DefAnnot (n, t) ->
     fprintf ppf "%s : %a" n output_typ t
+
+and output_alias ppf = function
+  | DefAlias (n, args, t) ->
+    output_string ppf n;
+    List.iter (fprintf ppf " %s") args;
+    fprintf ppf " = %a" output_typ t
+  | DefData (n, args, ctors) ->
+    output_string ppf n;
+    List.iter (fprintf ppf " %s") args;
+    let helper ppf (n, args) =
+      fprintf ppf "%s" n;
+      List.iter (fprintf ppf " %a" output_typ) args in
+    fprintf ppf " = %a" (output_list ~s:" |" helper) ctors
 
 and output_lit ppf = function
   | LitInt n ->

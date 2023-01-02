@@ -5,10 +5,10 @@
   >      Partial = Id (App App App (->) String)
   > EOF
   (->) = (->) : * -> * -> *
-  App = (\f$3. (\v$5. f$3 v$5)) : (\$8. (\$9. ($8 -> $9) -> $8 -> $9))
+  App = (\f$3. (\v$5. f$3 v$5)) : (\$10. (\$11. ($10 -> $11) -> $10 -> $11))
   Bool = Bool : *
   Char = Char : *
-  Id = (\x. x) : (\$2. $2 -> $2)
+  Id = (\x. x) : (\$9. $9 -> $9)
   Int = Int : *
   IntToChar = Int -> Char : *
   Partial = (->) String : * -> *

@@ -8,7 +8,7 @@ open Ast
 %token <string> OP_VPRE OP_VMUL OP_VADD OP_VRCN OP_VAPP OP_VCMP
 %token <string> OP_DPRE OP_DMUL OP_DADD OP_DRCN OP_DAPP OP_DCMP
 %token LET REC IN REF MATCH WITH IF THEN ELSE
-%token EXTERN DEF DATA TYPE TRAIT IMPL
+%token EXTERN DEF TYPE TRAIT IMPL
 %token UNDERSCORE
 %token <string> IDCTOR IDVAR
 %token <Z.t> INT
@@ -62,7 +62,6 @@ toplevel:
   | DEF; vb = block_vbinds { TopDef vb }
   | EXTERN; vb = block_externs { TopExtern vb }
   | TYPE; vb = block_aliases { TopAlias vb }
-  | DATA; vb = block_datas { TopData vb }
   | e = expr { TopExpr e }
 
 block_externs:
@@ -76,21 +75,18 @@ block_aliases:
   | LCURLY; xs = aliases; RCURLY { xs }
 
 aliases:
-  | n = IDCTOR; args = IDVAR*; SET; t = annot; SEMI; xs = aliases { (n, args, t) :: xs }
-  | n = IDCTOR; args = IDVAR*; SET; t = annot; SEMI? { [(n, args, t)] }
+  | x = alias; SEMI; xs = aliases { x :: xs }
+  | x = alias; SEMI? { [x] }
 
-block_datas:
-  | LCURLY; xs = datas; RCURLY { xs }
-
-datas:
-  | n = IDCTOR; args = IDVAR*; SET; ks = ctors; SEMI; xs = datas { (n, args, ks) :: xs }
-  | n = IDCTOR; args = IDVAR*; SET; ks = ctors; SEMI? { [(n, args, ks)] }
+alias:
+  | n = IDCTOR; args = IDVAR*; SET; t = annot { DefAlias (n, args, t) }
+  | n = IDCTOR; args = IDVAR*; SET; LCURLY; ks = ctors; RCURLY { DefData (n, args, ks) }
 
 ctors:
-  | n = IDCTOR; args = annot3*; BAR; xs = ctors { (n, args) :: xs }
-  | n = IDCTOR; args = annot3* { [(n, args)] }
-  | n = dop_name; args = annot3*; BAR; xs = ctors { (n, args) :: xs }
-  | n = dop_name; args = annot3* { [(n, args)] }
+  | n = IDCTOR; args = annot3*; SEMI; xs = ctors { (n, args) :: xs }
+  | n = IDCTOR; args = annot3*; SEMI? { [(n, args)] }
+  | n = dop_name; args = annot3*; SEMI; xs = ctors { (n, args) :: xs }
+  | n = dop_name; args = annot3*; SEMI? { [(n, args)] }
 
 repl_expr:
   | LCURLY; e = expr; RCURLY; EOF { e }

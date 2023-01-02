@@ -172,46 +172,6 @@ let collect_decl_tvs (ctx : context) (tvargs : string list) =
       else loop next ((name, kind) :: acc) errors ctx xs in
   loop StrMap.empty [] [] ctx tvargs
 
-let visit_alias (ctx : context) ((n, args, t) : Ast.ast_alias) =
-  if ctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
-
-  let open Type in
-  let* (map, args, ctx) = collect_decl_tvs ctx args in
-  let ctx = { ctx with tvenv = [map] } in
-  let* (t, k, f, _, ctx) = visit_ast_type false None ctx t in
-  let ctx = { ctx with tvenv = [] } in
-  match S.solve [f] with
-    | Error e -> Error (List.map S.explain e)
-    | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
-    | Ok [] ->
-      let k = T.normalize k in
-      let foldf (q, qk) (t, k) =
-        let qk = T.normalize qk in
-        (TQuant (q, t), TArr (qk, k)) in
-      let (t, k) = List.fold_right foldf args (t, k) in
-      let qs = T.collect_free_tvars k in
-      let (qs, ctx) = gen ctx qs in
-      let k = List.fold_left (fun k q -> T.TQuant (q, k)) k qs in
-      Ok (n, t, k, ctx)
-
-let visit_top_alias (ctx : context) (defs : Ast.ast_alias list) =
-  let rec loop map errors ctx = function
-    | [] ->
-      if errors = [] then
-        let tctors = merge_map ctx.tctors map in
-        Ok (map, { ctx with tctors })
-      else Error (List.rev errors)
-    | x :: xs ->
-      let* (n, t, k, ctx) = visit_alias ctx x in
-      let updatef = function
-        | None -> Some (t, k)
-        | t -> t in
-      let next = StrMap.update n updatef map in
-      if next == map then
-        loop next (("duplicate type alias " ^ n) :: errors) ctx xs
-      else loop next errors ctx xs in
-  loop StrMap.empty [] ctx defs
-
 let gen_tuple_shape ctx elts =
   let rec loop acc ctx = function
     | [] -> (List.rev acc, ctx)
@@ -746,12 +706,13 @@ let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
   let s = StrMap.mapi (fun k (t, _) -> (C.EVar ((k, Z.zero), t), t)) m in
   Ok (m, { ctx with idenv = s :: ctx.idenv })
 
-let visit_top_data (ctx : context) (dats : Ast.ast_data list) =
+let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
   if ctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
 
   let open Type in
-  let rec collect_cases rules new_decls new_cases ctx = function
+  let rec collect_cases rules new_decls new_cases new_aliases ctx = function
     | [] -> begin
+      let normalize t = t |> subst_rigid new_aliases |> normalize in
       match S.solve rules with
         | Error e -> Error (List.map S.explain e)
         | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
@@ -760,59 +721,105 @@ let visit_top_data (ctx : context) (dats : Ast.ast_data list) =
           let rec update_kinds new_types ctx = function
             | [] ->
               Ok (new_types, { ctx with dctors = merge_map ctx.dctors new_cases })
-            | (n, _, _) :: xs ->
-              let (t, k) = StrMap.find n ctx.tctors in
-              let qs = T.collect_free_tvars k in
+
+            | Ast.DefAlias (n, _, _) :: xs ->
+              let (_, k) = StrMap.find n ctx.tctors in
+              let t = V.Map.find (n, Z.minus_one) new_aliases |> normalize in
+              let qs = collect_free_tvars k in
               let (qs, ctx) = gen ctx qs in
               let k = List.fold_left (fun k q -> TQuant (q, k)) k qs in
               let tctors = StrMap.add n (t, k) ctx.tctors in
               let new_types = StrMap.add n (t, k) new_types in
-              update_kinds new_types { ctx with tctors } xs in
-          update_kinds StrMap.empty ctx dats
+              update_kinds new_types { ctx with tctors } xs
+
+            | Ast.DefData (n, _, _) :: xs ->
+              let (t, k) = StrMap.find n ctx.tctors in
+              match t with
+                | TCons (TCtorVar variant, []) -> begin
+                  try
+                    let mapf _ (t : t list) =
+                      let mapf t =
+                        let t = normalize t in
+                        if not @@ contains_quant t then t
+                        else failwith "unsaturated type aliases are not allowed" in
+                      Some (List.map mapf t) in
+                    Hashtbl.filter_map_inplace mapf variant.cases;
+
+                    let qs = collect_free_tvars k in
+                    let (qs, ctx) = gen ctx qs in
+                    let k = List.fold_left (fun k q -> TQuant (q, k)) k qs in
+                    let tctors = StrMap.add n (t, k) ctx.tctors in
+                    let new_types = StrMap.add n (t, k) new_types in
+                    update_kinds new_types { ctx with tctors } xs
+                  with Failure e -> Error [e]
+                end
+                | _ -> failwith "IMPOSSIBLE NON-VARIANT CONTRUCTOR" in
+          update_kinds StrMap.empty ctx aliases
     end
-    | (n, _, cases) :: xs ->
-      let (variant, tvenv) = StrMap.find n new_decls in
-      let rec loop rules new_cases ctx = function
-        | [] -> collect_cases rules new_decls new_cases ctx xs
-        | (k, args) :: xs ->
-          let rec inner rules acc ctx = function
-            | [] -> begin
-              if Hashtbl.mem variant.cases k then
-                Error ["duplicate data constructor " ^ k]
-              else begin
-                Hashtbl.add variant.cases k (List.rev acc);
-                loop rules (StrMap.add k variant new_cases) ctx xs
-              end
-            end
-            | x :: xs ->
-              let* (t, k, f, _, ctx) = visit_ast_type false None ctx x in
-              inner (S.CnstEq (V.Set.empty, k, TKind) :: f :: rules) (t :: acc) ctx xs in
-          inner rules [] ctx args in
-      loop rules new_cases { ctx with tvenv = [tvenv] } cases in
+
+    | Ast.DefAlias (n, _, t) :: xs ->
+      let (_, knot, args, tvenv) = StrMap.find n new_decls in
+      let ctx = { ctx with tvenv = [tvenv] } in
+      let* (t, k, f, _, ctx) = visit_ast_type false None ctx t in
+      let rules = S.CnstEq (V.Set.empty, k, knot) :: f :: rules in
+      let t = List.fold_right (fun (q, _) t -> TQuant (q, t)) args t in
+      let new_aliases = V.Map.add (n, Z.minus_one) t new_aliases in
+      collect_cases rules new_decls new_cases new_aliases ctx xs
+
+    | Ast.DefData (n, _, cases) :: xs ->
+      match StrMap.find n new_decls with
+        | (TCons (TCtorVar variant, []), knot, _, tvenv) ->
+          let rec loop rules new_cases ctx = function
+            | [] -> collect_cases rules new_decls new_cases new_aliases ctx xs
+            | (k, args) :: xs ->
+              let rec inner rules acc ctx = function
+                | [] -> begin
+                  if Hashtbl.mem variant.cases k then
+                    Error ["duplicate data constructor " ^ k]
+                  else begin
+                    Hashtbl.add variant.cases k (List.rev acc);
+                    loop rules (StrMap.add k variant new_cases) ctx xs
+                  end
+                end
+                | x :: xs ->
+                  let* (t, k, f, _, ctx) = visit_ast_type false None ctx x in
+                  inner (S.CnstEq (V.Set.empty, k, knot) :: f :: rules) (t :: acc) ctx xs in
+              inner rules [] ctx args in
+          loop rules new_cases { ctx with tvenv = [tvenv] } cases
+        | _ -> failwith "IMPOSSIBLE NON-VARIANT CONSTRUCTOR FOR SUM TYPES" in
 
   let rec collect_names new_decls ctx = function
-    | [] -> collect_cases [] new_decls StrMap.empty ctx dats
-    | (n, args, _) :: xs ->
+    | [] -> collect_cases [] new_decls StrMap.empty V.Map.empty ctx aliases
+    | Ast.DefAlias (n, args, _) :: xs ->
       let* (tvenv, args, ctx) = collect_decl_tvs ctx args in
-      let variant : Type.variant = {
+      let value = TRigid (n, Z.minus_one) in
+      let (kind, ctx) = mk_tvar ctx "" in
+      tail n args value kind tvenv new_decls ctx xs
+
+    | Ast.DefData (n, args, _) :: xs ->
+      let* (tvenv, args, ctx) = collect_decl_tvs ctx args in
+      let value = TCons (TCtorVar {
         name = n;
         quants = List.map fst args;
         cases = Hashtbl.create 16;
-      } in
-      let updatef = function
-        | None -> Some (variant, tvenv)
-        | t -> t in
-      let next = StrMap.update n updatef new_decls in
-      if next == new_decls then Error ["duplicate data definition " ^ n]
-      else begin
-        let foldf (_, qk) k = TArr (qk, k) in
-        let kind = List.fold_right foldf args TKind in
-        let entry = (TCons (TCtorVar variant, []), kind) in
-        let tctors = StrMap.add n entry ctx.tctors in
-        collect_names next { ctx with tctors } xs
-      end in
+      }, []) in
+      tail n args value TKind tvenv new_decls ctx xs
 
-  collect_names StrMap.empty ctx dats
+  and tail n args value kind tvenv new_decls ctx xs =
+    let updatef = function
+      | None -> Some (value, kind, args, tvenv)
+      | t -> t in
+    let next = StrMap.update n updatef new_decls in
+    if next == new_decls then Error ["duplicate type definition " ^ n]
+    else begin
+      let foldf (_, qk) k = TArr (qk, k) in
+      let kind = List.fold_right foldf args kind in
+      let entry = (value, kind) in
+      let tctors = StrMap.add n entry ctx.tctors in
+      collect_names next { ctx with tctors } xs
+    end in
+
+  collect_names StrMap.empty ctx aliases
 
 let visit_toplevel (ctx : context) (ast : Ast.ast_toplevel) =
   match ast with
@@ -825,9 +832,6 @@ let visit_toplevel (ctx : context) (ast : Ast.ast_toplevel) =
     | Ast.TopExtern defs ->
       let* (m, ctx) = visit_top_externs ctx defs in
       Ok (AddExtern m, ctx)
-    | Ast.TopData defs ->
-      let* (m, ctx) = visit_top_data ctx defs in
-      Ok (AddTypes m, ctx)
     | Ast.TopExpr e ->
       let* (ast, ty, ctx) = visit_top_expr ctx e in
       Ok (EvalExpr (ast, ty), ctx)

@@ -119,10 +119,11 @@ and repl_loop tctx venv =
               | Error (p, e) ->
                 printf "Error (%d, %d): %s\n" (get_lineno p) (get_colno p) e
               | Ok ast ->
-                match visit_alias tctx ("", [], ast) with
+                match visit_top_alias tctx [Ast.DefAlias ("", [], ast)] with
                   | Error e ->
                     List.iter (printf "Error: %s\n") e
-                  | Ok (_, t, k, _) ->
+                  | Ok (m, _) ->
+                    let (t, k) = StrMap.find "" m in
                     printf "%a : %a\n" Type.output t Type.output k in
             repl_loop tctx venv
           | ":t" | ":type" ->

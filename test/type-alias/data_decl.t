@@ -1,23 +1,23 @@
 Things that are (clearly) illegal
   $ GenKind << "EOF"
-  > data A s = A s
-  >      A s = B s
+  > type A s = { A s }
+  >      A s = { B s }
   > EOF
-  Error: duplicate data definition A
+  Error: duplicate type definition A
 
   $ GenKind << "EOF"
-  > data A t t = A
+  > type A t t = { A }
   > EOF
   Error: duplicate type variable t
 
   $ GenKind << "EOF"
-  > data A = A t
+  > type A = { A t }
   > EOF
   Error: unknown type variable named t
 
 Things that are (not so obviously) legal
   $ GenKind << "EOF"
-  > data Foo = K; Bar = K
+  > type Foo = {K}; Bar = {K}
   > EOF
   (->) = (->) : * -> * -> *
   Bar = Bar : *
@@ -31,8 +31,8 @@ Things that are (not so obviously) legal
 
 An example of mutual recursive data definitions
   $ GenKind << "EOF"
-  > data Tree a   = Empty | Node a (Forest a)
-  >      Forest a = Nil | Cons (Tree a) (Forest a)
+  > type Tree a   = { Empty ; Node a (Forest a) }
+  >      Forest a = { Nil ; Cons (Tree a) (Forest a) }
   > 
   > Cons (Node "" Nil) Nil
   > EOF
@@ -48,9 +48,9 @@ An example of mutual recursive data definitions
 
 An example of some "normal" data definitions
   $ GenKind << "EOF"
-  > data Option a = None | Some a
-  > data Either a b = Left a | Right b
-  > data NonEmptyList a = (::|) a [a]
+  > type Option a = { None ; Some a }
+  > type Either a b = { Left a ; Right b }
+  > type NonEmptyList a = { (::|) a [a] }
   > 
   > 1 ::| [2, 3]
   > EOF
@@ -67,13 +67,13 @@ An example of some "normal" data definitions
 
 A series of strange kind-related test cases
   $ GenKind << "EOF"
-  > data F m = F (m Int)
+  > type F m = { F (m Int) }
   > type T = F Int
   > EOF
   Error: Cannot unify unrelated types * -> * and *
 
   $ GenKind << "EOF"
-  > data F m = F (m Int)
+  > type F m = { F (m Int) }
   > type T = F []
   > EOF
   (->) = (->) : * -> * -> *
@@ -87,13 +87,13 @@ A series of strange kind-related test cases
   ref = ref : * -> *
 
   $ GenKind << "EOF"
-  > data F m = F (m Int)
+  > type F m = { F (m Int) }
   > type T = F (->)
   > EOF
   Error: Cannot unify unrelated types * and * -> *
 
   $ GenKind << "EOF"
-  > data F m = F (m Int)
+  > type F m = { F (m Int) }
   > type T = F ((->) Char)
   > EOF
   (->) = (->) : * -> * -> *
@@ -108,7 +108,7 @@ A series of strange kind-related test cases
 
 And to make sure kinds are generalized correctly
   $ GenKind << "EOF"
-  > data P t = P
+  > type P t = { P }
   > type T1 = P Int
   > type T2 = P []
   > type T3 = P (->)
