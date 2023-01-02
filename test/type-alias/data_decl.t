@@ -34,7 +34,7 @@ An example of mutual recursive data definitions
   > data Tree a   = Empty | Node a (Forest a)
   >      Forest a = Nil | Cons (Tree a) (Forest a)
   > 
-  > Cons (Node "" Nil) Nil;
+  > Cons (Node "" Nil) Nil
   > EOF
   (->) = (->) : * -> * -> *
   Bool = Bool : *
@@ -52,7 +52,7 @@ An example of some "normal" data definitions
   > data Either a b = Left a | Right b
   > data NonEmptyList a = (::|) a [a]
   > 
-  > 1 ::| [2, 3];
+  > 1 ::| [2, 3]
   > EOF
   (->) = (->) : * -> * -> *
   Bool = Bool : *

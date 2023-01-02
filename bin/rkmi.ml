@@ -1,5 +1,6 @@
 open Rkm
 open Driver
+open Lexing
 open Printf
 open Sem
 
@@ -78,9 +79,9 @@ let proc_toplevel verbose venv = function
 
 let rec cont_eval_prog verbose tctx venv = function
   | Error (p, e) ->
-    printf "Error (%d, %d): %s\n" (p.Parser.lineno + 1) (p.Parser.colno + 1) e;
+    printf "Error (%d, %d): %s\n" (get_lineno p) (get_colno p) e;
     repl_loop tctx venv
-  | Ok (acc, _) ->
+  | Ok acc ->
     match visit_prog tctx acc with
       | Error e ->
         List.iter (printf "Error: %s\n") e;
@@ -101,23 +102,23 @@ and repl_loop tctx venv =
     | None -> ()
     | Some (lines, _) ->
       let strlen = String.length lines in
+      let init_pos = { pos_fname = ""; pos_lnum = 0; pos_bol = 0; pos_cnum = 0 } in
       if strlen > 0 && lines.[0] = ':' then
         let (init_pos, cmd, lines) =
           match String.index_opt lines ' ' with
-            | None -> (Parser.zero_pos, lines, "")
+            | None -> (init_pos, lines, "")
             | Some i ->
               let tail = String.sub lines (i + 1) (strlen - i - 1) in
-              ({ lineno = 0; colno = i + 1 }, String.sub lines 0 i, tail) in
+              ({ init_pos with pos_cnum = i }, String.sub lines 0 i, tail) in
         match cmd with
           | ":q" | ":quit" -> ()
           | ":k" | ":kind" ->
-            let lexbuf = Lexing.from_string lines in
-            let result = parse ~init_pos (Parser.annot ~-1) lexbuf in
+            let lexbuf = Lexing.from_string ("{" ^ lines ^ "}") in
+            let result = parse init_pos Parser.Incremental.repl_annot lexbuf in
             let () = match result with
               | Error (p, e) ->
-                printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e
-              | Ok (None, _) -> ()
-              | Ok (Some ast, _) ->
+                printf "Error (%d, %d): %s\n" (get_lineno p) (get_colno p) e
+              | Ok ast ->
                 match visit_alias tctx ("", [], ast) with
                   | Error e ->
                     List.iter (printf "Error: %s\n") e
@@ -125,13 +126,12 @@ and repl_loop tctx venv =
                     printf "%a : %a\n" Type.output t Type.output k in
             repl_loop tctx venv
           | ":t" | ":type" ->
-            let lexbuf = Lexing.from_string lines in
-            let result = parse ~init_pos (Parser.expr ~-1) lexbuf in
+            let lexbuf = Lexing.from_string ("{" ^ lines ^ "}") in
+            let result = parse init_pos Parser.Incremental.repl_expr lexbuf in
             let () = match result with
               | Error (p, e) ->
-                printf "Error (%d, %d): %s\n" (p.lineno + 1) (p.colno + 1) e
-              | Ok (None, _) -> ()
-              | Ok (Some ast, _) ->
+                printf "Error (%d, %d): %s\n" (get_lineno p) (get_colno p) e
+              | Ok ast ->
                 match visit_top_expr tctx ast with
                   | Error e ->
                     List.iter (printf "Error: %s\n") e
@@ -153,7 +153,7 @@ and repl_loop tctx venv =
                 printf "loading file '%s'\n" lines;
                 try
                   let lexbuf = Lexing.from_channel chan in
-                  let result = parse Parser.prog lexbuf in
+                  let result = parse init_pos Parser.Incremental.prog lexbuf in
                   close_in chan;
                   cont_eval_prog false tctx venv result
                 with _ -> close_in_noerr chan
@@ -166,7 +166,7 @@ and repl_loop tctx venv =
             repl_loop tctx venv
       else
         let lexbuf = Lexing.from_string lines in
-        let result = parse Parser.prog lexbuf in
+        let result = parse init_pos Parser.Incremental.prog lexbuf in
         cont_eval_prog true tctx venv result
 
 let () =

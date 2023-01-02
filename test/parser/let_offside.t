@@ -1,46 +1,46 @@
   $ GenAst << "EOF"
-  > let x = a; y = b; g = c in z;
+  > let x = a; y = b; g = c in z
   > 
   > let x = a; y = b
-  > in z;
+  >  in z
   > 
   > let {x = a
-  >   ; y = b} in z;
+  >   ; y = b} in z
   > 
   > let x = a
   >     y = b
-  >   in z;
+  >   in z
   > 
   > let x = a; y = b c
   >     g = h
-  >      i j in q;
+  >      i j in q
   > 
   > let x = a; y = b c
-  >     g = (h // parenthesis allows side-stepping offside rule
-  >       i j) in q;
+  >     g = (h
+  >      i j) in q
   > 
-  > let rec x = a; y = b; g = c in z;
+  > let rec x = a; y = b; g = c in z
   > 
   > let rec x = a; y = b
-  > in z;
+  >  in z
   > 
   > let rec {x = a
-  >   ; y = b} in z;
+  >   ; y = b} in z
   > 
   > let
-  > rec x = a
-  >     y = b
-  >   in z;
+  >  rec x = a
+  >      y = b
+  >   in z
   > 
   > let rec
   >  x = a; y = b c
   >  g = h
-  >    i j in q;
+  >    i j in q
   > 
   > let rec
   >  x = a; y = b c
-  >  g = (h // parenthesis allows side-stepping offside rule
-  >  i j) in q;
+  >  g = (h
+  >   i j) in q
   > 
   > // here we mix a match and let together
   > // (intentionally somewhat poorly formatted)
@@ -49,11 +49,11 @@
   >                         Nil -> acc
   >                         Cons x xs -> loop (cons x acc) xs
   >              in loop empty_list xs
-  > in rev;
+  >  in rev
   > 
   > // operators are also allowed
-  > let (++) x y = (x, y) in (p ++ q, (++) p q);
-  > let (--) = \x y -> y - x in 1 -- 2;
+  > let (++) x y = (x, y) in (p ++ q, (++) p q)
+  > let (--) = \x y -> y - x in 1 -- 2
   > EOF
   let { x = a; y = b; g = c; } in z
   let { x = a; y = b; } in z

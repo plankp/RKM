@@ -11,6 +11,7 @@ depends: [
   "ocaml" {>= "4.08.0"}
   "dune" {>= "2.8" & >= "2.8.0"}
   "zarith" {>= "1.10"}
+  "menhir"
   "odoc" {with-doc}
 ]
 build: [

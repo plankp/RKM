@@ -1,0 +1,1946 @@
+prog: LCURLY RCURLY WITH
+##
+## Ends in an error in state: 275.
+##
+## prog -> LCURLY RCURLY . EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY RCURLY
+##
+
+Missing top level element
+
+prog: LCURLY CHAR RCURLY WITH
+##
+## Ends in an error in state: 317.
+##
+## prog -> LCURLY toplevels RCURLY . EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY toplevels RCURLY
+##
+
+Unexpected trailing token after a completed program
+
+prog: LCURLY TYPE LCURLY WITH
+##
+## Ends in an error in state: 3.
+##
+## block_aliases -> LCURLY . aliases RCURLY [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing type alias definitions
+
+prog: LCURLY TYPE LCURLY IDCTOR SEMI
+##
+## Ends in an error in state: 4.
+##
+## aliases -> IDCTOR . list(IDVAR) SET annot SEMI aliases [ RCURLY ]
+## aliases -> IDCTOR . list(IDVAR) SET annot option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR
+##
+
+Incomplete type alias definition
+
+prog: LCURLY TYPE LCURLY IDCTOR SET SEMI
+##
+## Ends in an error in state: 8.
+##
+## aliases -> IDCTOR list(IDVAR) SET . annot SEMI aliases [ RCURLY ]
+## aliases -> IDCTOR list(IDVAR) SET . annot option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(IDVAR) SET
+##
+
+Missing type expression
+
+prog: LCURLY DATA LCURLY WITH
+##
+## Ends in an error in state: 293.
+##
+## block_datas -> LCURLY . datas RCURLY [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing data definitions
+
+prog: LCURLY DATA LCURLY IDCTOR SEMI
+##
+## Ends in an error in state: 294.
+##
+## datas -> IDCTOR . list(IDVAR) SET ctors SEMI datas [ RCURLY ]
+## datas -> IDCTOR . list(IDVAR) SET ctors option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR
+##
+
+Incomplete data definition
+
+prog: LCURLY DATA LCURLY IDCTOR SET SEMI
+##
+## Ends in an error in state: 296.
+##
+## datas -> IDCTOR list(IDVAR) SET . ctors SEMI datas [ RCURLY ]
+## datas -> IDCTOR list(IDVAR) SET . ctors option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(IDVAR) SET
+##
+
+Missing data constructors
+
+prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR BAR SEMI
+##
+## Ends in an error in state: 301.
+##
+## ctors -> IDCTOR list(annot3) BAR . ctors [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(annot3) BAR
+##
+
+Missing another data constructor
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD RPAREN BAR WITH
+##
+## Ends in an error in state: 304.
+##
+## ctors -> dop_name list(annot3) BAR . ctors [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## dop_name list(annot3) BAR
+##
+
+Missing another data constructor
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN WITH
+##
+## Ends in an error in state: 297.
+##
+## dop_name -> LPAREN . OP_DPRE RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN . OP_DMUL RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN . OP_DADD RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN . OP_DRCN RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN . OP_DAPP RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+## dop_name -> LPAREN . OP_DCMP RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+Missing operator name
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DPRE WITH
+##
+## Ends in an error in state: 298.
+##
+## dop_name -> LPAREN OP_DPRE . RPAREN [ UNDERSCORE SEMI REF RCURLY LSQUARE LPAREN IDVAR IDCTOR BAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DPRE
+##
+
+Missing ')'
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DMUL WITH
+##
+## Ends in an error in state: 71.
+##
+## dop_name -> LPAREN OP_DMUL . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DMUL
+##
+
+Missing ')'
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD WITH
+##
+## Ends in an error in state: 77.
+##
+## dop_name -> LPAREN OP_DADD . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DADD
+##
+
+Missing ')'
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DRCN WITH
+##
+## Ends in an error in state: 53.
+##
+## dop_name -> LPAREN OP_DRCN . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DRCN
+##
+
+Missing ')'
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DAPP WITH
+##
+## Ends in an error in state: 75.
+##
+## dop_name -> LPAREN OP_DAPP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DAPP
+##
+
+Missing ')'
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DCMP WITH
+##
+## Ends in an error in state: 73.
+##
+## dop_name -> LPAREN OP_DCMP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DCMP
+##
+
+Missing ')'
+
+prog: LCURLY EXTERN LCURLY WITH
+##
+## Ends in an error in state: 278.
+##
+## block_externs -> LCURLY . externs RCURLY [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing external definitions
+
+prog: LCURLY EXTERN LCURLY IDVAR WITH
+##
+## Ends in an error in state: 279.
+##
+## externs -> IDVAR . COLON annot SET STR SEMI externs [ RCURLY ]
+## externs -> IDVAR . COLON annot SET STR option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR
+##
+
+Incomplete external definition
+
+prog: LCURLY EXTERN LCURLY IDVAR COLON WITH
+##
+## Ends in an error in state: 280.
+##
+## externs -> IDVAR COLON . annot SET STR SEMI externs [ RCURLY ]
+## externs -> IDVAR COLON . annot SET STR option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR COLON
+##
+
+Missing explicit type annotation
+
+prog: LCURLY EXTERN LCURLY IDVAR COLON IDVAR WITH
+##
+## Ends in an error in state: 281.
+##
+## externs -> IDVAR COLON annot . SET STR SEMI externs [ RCURLY ]
+## externs -> IDVAR COLON annot . SET STR option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR COLON annot
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 22, spurious reduction of production annot -> annot2
+##
+
+Missing '='
+
+prog: LCURLY EXTERN LCURLY IDVAR COLON IDVAR SET WITH
+##
+## Ends in an error in state: 282.
+##
+## externs -> IDVAR COLON annot SET . STR SEMI externs [ RCURLY ]
+## externs -> IDVAR COLON annot SET . STR option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR COLON annot SET
+##
+
+Missing external name of external definition
+
+prog: LCURLY DEF LCURLY WITH
+##
+## Ends in an error in state: 129.
+##
+## block_vbinds -> LCURLY . vbinds RCURLY [ SEMI RCURLY IN ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing value definitions
+
+prog: LCURLY DEF LCURLY IDVAR WITH
+##
+## Ends in an error in state: 146.
+##
+## vbind -> IDVAR . COLON annot [ SEMI RCURLY ]
+## vbind -> IDVAR . list(pat4) SET expr [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR
+##
+
+Incomplete value definition
+
+prog: LCURLY DEF LCURLY IDVAR IDVAR WITH
+##
+## Ends in an error in state: 149.
+##
+## list(pat4) -> pat4 . list(pat4) [ SET ]
+##
+## The known suffix of the stack is as follows:
+## pat4
+##
+
+Incomplete value definition
+
+prog: LCURLY DEF LCURLY IDVAR COLON WITH
+##
+## Ends in an error in state: 147.
+##
+## vbind -> IDVAR COLON . annot [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR COLON
+##
+
+Missing explicit type annotation
+
+prog: LCURLY DEF LCURLY IDVAR SET WITH
+##
+## Ends in an error in state: 152.
+##
+## vbind -> IDVAR list(pat4) SET . expr [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR list(pat4) SET
+##
+
+Missing initializer for value definition
+
+prog: LCURLY DEF LCURLY LPAREN WITH
+##
+## Ends in an error in state: 130.
+##
+## vop_name -> LPAREN . BAR RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . NOT RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . NEG RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . OP_VPRE RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . OP_VMUL RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . OP_VADD RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . OP_VRCN RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . OP_VAPP RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+## vop_name -> LPAREN . OP_VCMP RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+Missing operator name
+
+prog: LCURLY DEF LCURLY LPAREN BAR WITH
+##
+## Ends in an error in state: 144.
+##
+## vop_name -> LPAREN BAR . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN BAR
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN NOT WITH
+##
+## Ends in an error in state: 140.
+##
+## vop_name -> LPAREN NOT . RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN NOT
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN NEG WITH
+##
+## Ends in an error in state: 142.
+##
+## vop_name -> LPAREN NEG . RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN NEG
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VPRE WITH
+##
+## Ends in an error in state: 131.
+##
+## vop_name -> LPAREN OP_VPRE . RPAREN [ UNDERSCORE STR SET REF LSQUARE LPAREN INT IDVAR IDCTOR COLON CHAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VPRE
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VMUL WITH
+##
+## Ends in an error in state: 132.
+##
+## vop_name -> LPAREN OP_VMUL . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VMUL
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VADD WITH
+##
+## Ends in an error in state: 138.
+##
+## vop_name -> LPAREN OP_VADD . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VADD
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VRCN WITH
+##
+## Ends in an error in state: 123.
+##
+## vop_name -> LPAREN OP_VRCN . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VRCN
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VAPP WITH
+##
+## Ends in an error in state: 136.
+##
+## vop_name -> LPAREN OP_VAPP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VAPP
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VCMP WITH
+##
+## Ends in an error in state: 134.
+##
+## vop_name -> LPAREN OP_VCMP . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VCMP
+##
+
+Missing ')'
+
+prog: LCURLY DEF LCURLY LPAREN OP_VADD RPAREN WITH
+##
+## Ends in an error in state: 227.
+##
+## vbind -> vop_name . COLON annot [ SEMI RCURLY ]
+## vbind -> vop_name . list(pat4) SET expr [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## vop_name
+##
+
+Incomplete operator definition
+
+prog: LCURLY DEF LCURLY LPAREN OP_VADD RPAREN COLON WITH
+##
+## Ends in an error in state: 228.
+##
+## vbind -> vop_name COLON . annot [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## vop_name COLON
+##
+
+Missing explicit type annotation
+
+prog: LCURLY DEF LCURLY LPAREN OP_VADD RPAREN SET WITH
+##
+## Ends in an error in state: 231.
+##
+## vbind -> vop_name list(pat4) SET . expr [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## vop_name list(pat4) SET
+##
+
+Missing initializer for operator definition
+
+repl_expr: LCURLY WITH
+##
+## Ends in an error in state: 332.
+##
+## repl_expr -> LCURLY . expr RCURLY EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing expression
+
+repl_annot: LCURLY WITH
+##
+## Ends in an error in state: 326.
+##
+## repl_annot -> LCURLY . annot RCURLY EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing type expression
+
+prog: LCURLY IF SEMI
+##
+## Ends in an error in state: 156.
+##
+## expr4 -> IF . expr option(SEMI) THEN expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF
+##
+
+Missing if condition
+
+prog: LCURLY IF IDVAR WITH
+##
+## Ends in an error in state: 212.
+##
+## expr4 -> IF expr . option(SEMI) THEN expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Missing 'then'
+
+prog: LCURLY IF CHAR SEMI WITH
+##
+## Ends in an error in state: 214.
+##
+## expr4 -> IF expr option(SEMI) . THEN expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expr option(SEMI)
+##
+
+Missing 'then'
+
+prog: LCURLY IF IDVAR THEN SEMI
+##
+## Ends in an error in state: 215.
+##
+## expr4 -> IF expr option(SEMI) THEN . expr option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expr option(SEMI) THEN
+##
+
+Missing then clause
+
+prog: LCURLY IF IDVAR THEN IDVAR WITH
+##
+## Ends in an error in state: 216.
+##
+## expr4 -> IF expr option(SEMI) THEN expr . option(SEMI) ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expr option(SEMI) THEN expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Missing 'else'
+
+prog: LCURLY IF CHAR THEN CHAR SEMI WITH
+##
+## Ends in an error in state: 217.
+##
+## expr4 -> IF expr option(SEMI) THEN expr option(SEMI) . ELSE expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expr option(SEMI) THEN expr option(SEMI)
+##
+
+Missing 'else'
+
+prog: LCURLY IF IDVAR THEN IDVAR ELSE SEMI
+##
+## Ends in an error in state: 218.
+##
+## expr4 -> IF expr option(SEMI) THEN expr option(SEMI) ELSE . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## IF expr option(SEMI) THEN expr option(SEMI) ELSE
+##
+
+Missing else clause
+
+prog: LCURLY LET LCURLY IDVAR SET INT RCURLY WITH
+##
+## Ends in an error in state: 242.
+##
+## expr4 -> LET block_vbinds . IN expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LET block_vbinds
+##
+
+Missing 'in'
+
+prog: LCURLY LET LCURLY IDVAR SET INT RCURLY IN WITH
+##
+## Ends in an error in state: 243.
+##
+## expr4 -> LET block_vbinds IN . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LET block_vbinds IN
+##
+
+Missing scoped expression
+
+prog: LCURLY LET REC LCURLY IDVAR SET INT RCURLY WITH
+##
+## Ends in an error in state: 239.
+##
+## expr4 -> LET REC block_vbinds . IN expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LET REC block_vbinds
+##
+
+Missing 'in'
+
+prog: LCURLY LET REC LCURLY IDVAR SET INT RCURLY IN WITH
+##
+## Ends in an error in state: 240.
+##
+## expr4 -> LET REC block_vbinds IN . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LET REC block_vbinds IN
+##
+
+Missing scoped expression
+
+prog: LCURLY SLASH WITH
+##
+## Ends in an error in state: 39.
+##
+## expr4 -> SLASH . nonempty_list(pat4) ARROW expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## expr4 -> SLASH . MATCH block_cases [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## SLASH
+##
+
+Missing lambda arguments or 'match'
+
+prog: LCURLY SLASH IDVAR WITH
+##
+## Ends in an error in state: 62.
+##
+## nonempty_list(pat4) -> pat4 . [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
+## nonempty_list(pat4) -> pat4 . nonempty_list(pat4) [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat4
+##
+
+Incomplete lambda expression
+
+prog: LCURLY SLASH IDVAR ARROW WITH
+##
+## Ends in an error in state: 273.
+##
+## expr4 -> SLASH nonempty_list(pat4) ARROW . expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## SLASH nonempty_list(pat4) ARROW
+##
+
+Missing lambda body
+
+prog: LCURLY MATCH WITH
+##
+## Ends in an error in state: 118.
+##
+## expr4 -> MATCH . expr WITH block_cases [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## MATCH
+##
+
+Missing match scrutinee
+
+prog: LCURLY MATCH IDVAR SEMI
+##
+## Ends in an error in state: 262.
+##
+## expr4 -> MATCH expr . WITH block_cases [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## MATCH expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Missing 'with'
+
+prog: LCURLY MATCH IDVAR WITH LCURLY SEMI
+##
+## Ends in an error in state: 44.
+##
+## block_cases -> LCURLY . cases RCURLY [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Missing match pattern
+
+prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR SEMI
+##
+## Ends in an error in state: 111.
+##
+## cases -> pat . ARROW expr SEMI cases [ RCURLY ]
+## cases -> pat . ARROW expr option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## pat
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 82, spurious reduction of production pat2_add -> pat2_mul
+## In state 86, spurious reduction of production pat2_rcn -> pat2_add
+## In state 79, spurious reduction of production pat2_app -> pat2_rcn
+## In state 95, spurious reduction of production pat2_cmp -> pat2_app
+## In state 91, spurious reduction of production pat2 -> pat2_cmp
+## In state 97, spurious reduction of production pat -> pat2
+##
+
+Missing '->'
+
+prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR ARROW SEMI
+##
+## Ends in an error in state: 112.
+##
+## cases -> pat ARROW . expr SEMI cases [ RCURLY ]
+## cases -> pat ARROW . expr option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## pat ARROW
+##
+
+Missing pattern action
+
+prog: LCURLY INT COLON SEMI
+##
+## Ends in an error in state: 210.
+##
+## expr -> expr2 COLON . annot [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2 COLON
+##
+
+Missing type annotation
+
+prog: LCURLY SLASH MATCH LCURLY INT COLON SEMI
+##
+## Ends in an error in state: 98.
+##
+## pat -> pat2 COLON . annot [ RSQUARE RPAREN COMMA ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2 COLON
+##
+
+Missing type annotation
+
+prog: LCURLY INT COLON IDVAR ARROW SEMI
+##
+## Ends in an error in state: 23.
+##
+## annot -> annot2 ARROW . annot [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## annot2 ARROW
+##
+
+Missing function return type
+
+prog: LCURLY INT SET SEMI
+##
+## Ends in an error in state: 196.
+##
+## expr2 -> expr2_or SET . expr2 [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_or SET
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OR SEMI
+##
+## Ends in an error in state: 207.
+##
+## expr2_or -> expr2_or OR . expr2_and [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_or OR
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT AND SEMI
+##
+## Ends in an error in state: 204.
+##
+## expr2_and -> expr2_and AND . expr2_cmp [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_and AND
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_VCMP SEMI
+##
+## Ends in an error in state: 198.
+##
+## expr2_cmp -> expr2_cmp OP_VCMP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_cmp OP_VCMP
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_DCMP SEMI
+##
+## Ends in an error in state: 200.
+##
+## expr2_cmp -> expr2_cmp OP_DCMP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_cmp OP_DCMP
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_VAPP SEMI
+##
+## Ends in an error in state: 170.
+##
+## expr2_app -> expr2_rcn OP_VAPP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_rcn OP_VAPP
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_DAPP SEMI
+##
+## Ends in an error in state: 193.
+##
+## expr2_app -> expr2_rcn OP_DAPP . expr2_app [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_rcn OP_DAPP
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_VRCN SEMI
+##
+## Ends in an error in state: 181.
+##
+## expr2_rcn -> expr2_add OP_VRCN . expr2_rcn [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_add OP_VRCN
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_DRCN SEMI
+##
+## Ends in an error in state: 185.
+##
+## expr2_rcn -> expr2_add OP_DRCN . expr2_rcn [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_add OP_DRCN
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT BAR SEMI
+##
+## Ends in an error in state: 191.
+##
+## expr2_add -> expr2_add BAR . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_add BAR
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT NEG WITH
+##
+## Ends in an error in state: 189.
+##
+## expr2_add -> expr2_add NEG . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_add NEG
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_VADD SEMI
+##
+## Ends in an error in state: 183.
+##
+## expr2_add -> expr2_add OP_VADD . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_add OP_VADD
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_DADD SEMI
+##
+## Ends in an error in state: 187.
+##
+## expr2_add -> expr2_add OP_DADD . expr2_mul [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_add OP_DADD
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_VMUL SEMI
+##
+## Ends in an error in state: 173.
+##
+## expr2_mul -> expr2_mul OP_VMUL . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_mul OP_VMUL
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY INT OP_DMUL SEMI
+##
+## Ends in an error in state: 177.
+##
+## expr2_mul -> expr2_mul OP_DMUL . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## expr2_mul OP_DMUL
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY OP_VPRE SEMI
+##
+## Ends in an error in state: 114.
+##
+## expr2_prefix -> OP_VPRE . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## OP_VPRE
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY OP_DPRE SEMI
+##
+## Ends in an error in state: 115.
+##
+## expr2_prefix -> OP_DPRE . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## OP_DPRE
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY NOT SEMI
+##
+## Ends in an error in state: 116.
+##
+## expr2_prefix -> NOT . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## NOT
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY NEG SEMI
+##
+## Ends in an error in state: 117.
+##
+## expr2_prefix -> NEG . expr2_prefix [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## NEG
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY LPAREN OP_VPRE SEMI
+##
+## Ends in an error in state: 125.
+##
+## expr2_prefix -> OP_VPRE . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
+## vop_name -> LPAREN OP_VPRE . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_VPRE
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY LPAREN OP_DPRE SEMI
+##
+## Ends in an error in state: 246.
+##
+## dop_name -> LPAREN OP_DPRE . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## expr2_prefix -> OP_DPRE . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DPRE
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY LPAREN NOT SEMI
+##
+## Ends in an error in state: 248.
+##
+## expr2_prefix -> NOT . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
+## vop_name -> LPAREN NOT . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN NOT
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY LPAREN NEG SEMI
+##
+## Ends in an error in state: 250.
+##
+## expr2_prefix -> NEG . expr2_prefix [ SET RPAREN OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG COMMA COLON BAR AND ]
+## vop_name -> LPAREN NEG . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN NEG
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY INT BAR SEMI
+##
+## Ends in an error in state: 94.
+##
+## pat2 -> pat2_cmp BAR . pat2 [ RSQUARE RPAREN COMMA COLON ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2_cmp BAR
+##
+
+Missing alternate pattern
+
+prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DCMP SEMI
+##
+## Ends in an error in state: 92.
+##
+## pat2_cmp -> pat2_cmp OP_DCMP . pat2_app [ RSQUARE RPAREN OP_DCMP COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2_cmp OP_DCMP
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DAPP SEMI
+##
+## Ends in an error in state: 80.
+##
+## pat2_app -> pat2_rcn OP_DAPP . pat2_app [ RSQUARE RPAREN OP_DCMP COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2_rcn OP_DAPP
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DRCN SEMI
+##
+## Ends in an error in state: 87.
+##
+## pat2_rcn -> pat2_add OP_DRCN . pat2_rcn [ RSQUARE RPAREN OP_DCMP OP_DAPP COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2_add OP_DRCN
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DADD SEMI
+##
+## Ends in an error in state: 89.
+##
+## pat2_add -> pat2_add OP_DADD . pat2_mul [ RSQUARE RPAREN OP_DRCN OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2_add OP_DADD
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY INT OP_DMUL SEMI
+##
+## Ends in an error in state: 83.
+##
+## pat2_mul -> pat2_mul OP_DMUL . pat2_prefix [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## pat2_mul OP_DMUL
+##
+
+Missing rhs of binary operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY NEG SEMI
+##
+## Ends in an error in state: 49.
+##
+## pat2_prefix -> NEG . INT [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## NEG
+##
+
+Missing numeric literal
+
+prog: LCURLY MATCH IDVAR WITH LCURLY OP_DPRE SEMI
+##
+## Ends in an error in state: 48.
+##
+## pat2_prefix -> OP_DPRE . pat2_prefix [ RSQUARE RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## OP_DPRE
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN OP_DPRE SEMI
+##
+## Ends in an error in state: 55.
+##
+## dop_name -> LPAREN OP_DPRE . RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## pat2_prefix -> OP_DPRE . pat2_prefix [ RPAREN OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD COMMA COLON BAR ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN OP_DPRE
+##
+
+Missing rhs of prefix operator
+
+prog: LCURLY LSQUARE SEMI
+##
+## Ends in an error in state: 119.
+##
+## expr4 -> LSQUARE . RSQUARE [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## expr4 -> LSQUARE . list_expr(RSQUARE) RSQUARE [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LSQUARE
+##
+
+Incomplete list
+
+prog: LCURLY LSQUARE IDVAR SEMI
+##
+## Ends in an error in state: 259.
+##
+## list_expr(RSQUARE) -> expr . COMMA list_expr(RSQUARE) [ RSQUARE ]
+## list_expr(RSQUARE) -> expr . [ RSQUARE ]
+##
+## The known suffix of the stack is as follows:
+## expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Incomplete list
+
+prog: LCURLY LSQUARE IDVAR COMMA SEMI
+##
+## Ends in an error in state: 260.
+##
+## list_expr(RSQUARE) -> expr COMMA . list_expr(RSQUARE) [ RSQUARE ]
+##
+## The known suffix of the stack is as follows:
+## expr COMMA
+##
+
+Missing another list element
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE SEMI
+##
+## Ends in an error in state: 46.
+##
+## pat4 -> LSQUARE . RSQUARE [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## pat4 -> LSQUARE . list_pat(RSQUARE) RSQUARE [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## LSQUARE
+##
+
+Incomplete list pattern
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE IDVAR SEMI
+##
+## Ends in an error in state: 105.
+##
+## list_pat(RSQUARE) -> pat . COMMA list_pat(RSQUARE) [ RSQUARE ]
+## list_pat(RSQUARE) -> pat . [ RSQUARE ]
+##
+## The known suffix of the stack is as follows:
+## pat
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 82, spurious reduction of production pat2_add -> pat2_mul
+## In state 86, spurious reduction of production pat2_rcn -> pat2_add
+## In state 79, spurious reduction of production pat2_app -> pat2_rcn
+## In state 95, spurious reduction of production pat2_cmp -> pat2_app
+## In state 91, spurious reduction of production pat2 -> pat2_cmp
+## In state 97, spurious reduction of production pat -> pat2
+##
+
+Incomplete list pattern
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LSQUARE IDVAR COMMA SEMI
+##
+## Ends in an error in state: 106.
+##
+## list_pat(RSQUARE) -> pat COMMA . list_pat(RSQUARE) [ RSQUARE ]
+##
+## The known suffix of the stack is as follows:
+## pat COMMA
+##
+
+Missing another list element
+
+prog: LCURLY LPAREN SEMI
+##
+## Ends in an error in state: 121.
+##
+## dop_name -> LPAREN . OP_DPRE RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## dop_name -> LPAREN . OP_DMUL RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## dop_name -> LPAREN . OP_DADD RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## dop_name -> LPAREN . OP_DRCN RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## dop_name -> LPAREN . OP_DAPP RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## dop_name -> LPAREN . OP_DCMP RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## expr4 -> LPAREN . RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## expr4 -> LPAREN . list_expr(RPAREN) RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . BAR RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . NOT RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . NEG RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . OP_VPRE RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . OP_VMUL RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . OP_VADD RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . OP_VRCN RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . OP_VAPP RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## vop_name -> LPAREN . OP_VCMP RPAREN [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+Incomplete parenthesized expression
+
+prog: LCURLY LPAREN IDVAR SEMI
+##
+## Ends in an error in state: 254.
+##
+## list_expr(RPAREN) -> expr . COMMA list_expr(RPAREN) [ RPAREN ]
+## list_expr(RPAREN) -> expr . [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Incomplete parenthesized expression
+
+prog: LCURLY LPAREN IDVAR COMMA SEMI
+##
+## Ends in an error in state: 255.
+##
+## list_expr(RPAREN) -> expr COMMA . list_expr(RPAREN) [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## expr COMMA
+##
+
+Missing another tuple element
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN SEMI
+##
+## Ends in an error in state: 51.
+##
+## dop_name -> LPAREN . OP_DPRE RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## dop_name -> LPAREN . OP_DMUL RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## dop_name -> LPAREN . OP_DADD RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## dop_name -> LPAREN . OP_DRCN RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## dop_name -> LPAREN . OP_DAPP RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## dop_name -> LPAREN . OP_DCMP RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## pat4 -> LPAREN . RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+## pat4 -> LPAREN . list_pat(RPAREN) RPAREN [ UNDERSCORE STR SET RSQUARE RPAREN REF OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD LSQUARE LPAREN INT IDVAR IDCTOR COMMA COLON CHAR BAR ARROW ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+Incomplete parenthesized pattern
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN IDVAR SEMI
+##
+## Ends in an error in state: 100.
+##
+## list_pat(RPAREN) -> pat . COMMA list_pat(RPAREN) [ RPAREN ]
+## list_pat(RPAREN) -> pat . [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## pat
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 82, spurious reduction of production pat2_add -> pat2_mul
+## In state 86, spurious reduction of production pat2_rcn -> pat2_add
+## In state 79, spurious reduction of production pat2_app -> pat2_rcn
+## In state 95, spurious reduction of production pat2_cmp -> pat2_app
+## In state 91, spurious reduction of production pat2 -> pat2_cmp
+## In state 97, spurious reduction of production pat -> pat2
+##
+
+Incomplete parenthesized pattern
+
+prog: LCURLY MATCH IDVAR WITH LCURLY LPAREN IDVAR COMMA SEMI
+##
+## Ends in an error in state: 101.
+##
+## list_pat(RPAREN) -> pat COMMA . list_pat(RPAREN) [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## pat COMMA
+##
+
+Missing another tuple element
+
+repl_annot: LCURLY LPAREN SEMI
+##
+## Ends in an error in state: 13.
+##
+## annot3 -> LPAREN . ARROW RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+## annot3 -> LPAREN . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+## annot3 -> LPAREN . list_annot RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN
+##
+
+Incomplete parenthesized type
+
+repl_annot: LCURLY LPAREN ARROW SEMI
+##
+## Ends in an error in state: 17.
+##
+## annot3 -> LPAREN ARROW . RPAREN [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LPAREN ARROW
+##
+
+Missing ')'
+
+repl_annot: LCURLY LPAREN IDVAR SEMI
+##
+## Ends in an error in state: 26.
+##
+## list_annot -> annot . COMMA list_annot [ RPAREN ]
+## list_annot -> annot . [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## annot
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 22, spurious reduction of production annot -> annot2
+##
+
+Incomplete parenthesized type
+
+repl_annot: LCURLY LPAREN IDVAR COMMA SEMI
+##
+## Ends in an error in state: 27.
+##
+## list_annot -> annot COMMA . list_annot [ RPAREN ]
+##
+## The known suffix of the stack is as follows:
+## annot COMMA
+##
+
+Missing another tuple element
+
+repl_annot: LCURLY LSQUARE SEMI
+##
+## Ends in an error in state: 11.
+##
+## annot3 -> LSQUARE . RSQUARE [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+## annot3 -> LSQUARE . annot RSQUARE [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LSQUARE
+##
+
+Incomplete list type
+
+repl_annot: LCURLY LSQUARE IDVAR SEMI
+##
+## Ends in an error in state: 29.
+##
+## annot3 -> LSQUARE annot . RSQUARE [ WITH UNDERSCORE THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR ARROW AND ]
+##
+## The known suffix of the stack is as follows:
+## LSQUARE annot
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 22, spurious reduction of production annot -> annot2
+##
+
+Missing ']'
+
+prog: LCURLY EOF
+##
+## Ends in an error in state: 1.
+##
+## prog -> LCURLY . toplevels RCURLY EOF [ # ]
+## prog -> LCURLY . RCURLY EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Incomplete program
+
+prog: LCURLY IDVAR SEMI EOF
+##
+## Ends in an error in state: 320.
+##
+## option(SEMI) -> SEMI . [ RCURLY ]
+## toplevels -> toplevel SEMI . toplevels [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## toplevel SEMI
+##
+
+Incomplete program
+
+prog: LCURLY LCURLY SEMI
+##
+## Ends in an error in state: 153.
+##
+## expr4 -> LCURLY . RCURLY [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+## expr4 -> LCURLY . exprs RCURLY [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY
+##
+
+Incomplete sequential expression
+
+prog: LCURLY LCURLY IDVAR DEF
+##
+## Ends in an error in state: 222.
+##
+## exprs -> expr . SEMI exprs [ RCURLY ]
+## exprs -> expr . option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Incomplete sequential expression
+
+prog: LCURLY LCURLY IDVAR SEMI DEF
+##
+## Ends in an error in state: 223.
+##
+## exprs -> expr SEMI . exprs [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## expr SEMI
+##
+
+Incomplete sequential expression
+
+prog: LCURLY MATCH IDVAR WITH LCURLY IDVAR ARROW IDVAR DEF
+##
+## Ends in an error in state: 265.
+##
+## cases -> pat ARROW expr . SEMI cases [ RCURLY ]
+## cases -> pat ARROW expr . option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## pat ARROW expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Incomplete match pattern
+
+prog: LCURLY TYPE LCURLY IDCTOR SET IDCTOR WITH
+##
+## Ends in an error in state: 31.
+##
+## aliases -> IDCTOR list(IDVAR) SET annot . SEMI aliases [ RCURLY ]
+## aliases -> IDCTOR list(IDVAR) SET annot . option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(IDVAR) SET annot
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 22, spurious reduction of production annot -> annot2
+##
+
+Incomplete type alias definition
+
+prog: LCURLY TYPE LCURLY IDCTOR SET IDCTOR SEMI WITH
+##
+## Ends in an error in state: 32.
+##
+## aliases -> IDCTOR list(IDVAR) SET annot SEMI . aliases [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(IDVAR) SET annot SEMI
+##
+
+Incomplete type alias definition
+
+prog: LCURLY DEF LCURLY IDVAR COLON IDCTOR AND
+##
+## Ends in an error in state: 235.
+##
+## vbinds -> vbind . SEMI vbinds [ RCURLY ]
+## vbinds -> vbind . option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## vbind
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 22, spurious reduction of production annot -> annot2
+## In state 148, spurious reduction of production vbind -> IDVAR COLON annot
+##
+
+Incomplete value definition
+
+prog: LCURLY DEF LCURLY IDVAR SET CHAR SEMI WITH
+##
+## Ends in an error in state: 236.
+##
+## option(SEMI) -> SEMI . [ RCURLY ]
+## vbinds -> vbind SEMI . vbinds [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## vbind SEMI
+##
+
+Incomplete value definition
+
+prog: LCURLY SLASH MATCH LCURLY CHAR ARROW CHAR SEMI WITH
+##
+## Ends in an error in state: 266.
+##
+## cases -> pat ARROW expr SEMI . cases [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## pat ARROW expr SEMI
+##
+
+Incomplete match patterns
+
+prog: LCURLY SLASH CHAR RSQUARE
+##
+## Ends in an error in state: 272.
+##
+## expr4 -> SLASH nonempty_list(pat4) . ARROW expr [ WITH THEN STR SLASH SET SEMI RSQUARE RPAREN REF RCURLY OR OP_VRCN OP_VMUL OP_VCMP OP_VAPP OP_VADD OP_DRCN OP_DMUL OP_DCMP OP_DAPP OP_DADD NEG MATCH LSQUARE LPAREN LET LCURLY INT IF IDVAR IDCTOR ELSE COMMA COLON CHAR BAR AND ]
+##
+## The known suffix of the stack is as follows:
+## SLASH nonempty_list(pat4)
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 62, spurious reduction of production nonempty_list(pat4) -> pat4
+##
+
+Incomplete lambda expression
+
+prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR WITH
+##
+## Ends in an error in state: 283.
+##
+## externs -> IDVAR COLON annot SET STR . SEMI externs [ RCURLY ]
+## externs -> IDVAR COLON annot SET STR . option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR COLON annot SET STR
+##
+
+Incomplete external definition
+
+prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR SEMI WITH
+##
+## Ends in an error in state: 284.
+##
+## externs -> IDVAR COLON annot SET STR SEMI . externs [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDVAR COLON annot SET STR SEMI
+##
+
+Incomplete external definition
+
+prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR WITH
+##
+## Ends in an error in state: 299.
+##
+## ctors -> IDCTOR . list(annot3) BAR ctors [ SEMI RCURLY ]
+## ctors -> IDCTOR . list(annot3) [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR
+##
+
+Incomplete data definition
+
+prog: LCURLY DATA LCURLY IDCTOR SET LPAREN OP_DADD RPAREN WITH
+##
+## Ends in an error in state: 302.
+##
+## ctors -> dop_name . list(annot3) BAR ctors [ SEMI RCURLY ]
+## ctors -> dop_name . list(annot3) [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## dop_name
+##
+
+Incomplete data definition
+
+prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR IDCTOR WITH
+##
+## Ends in an error in state: 306.
+##
+## list(annot3) -> annot3 . list(annot3) [ SEMI RCURLY BAR ]
+##
+## The known suffix of the stack is as follows:
+## annot3
+##
+
+Incomplete data definition
+
+prog: LCURLY DATA LCURLY IDCTOR SET IDCTOR SEMI WITH
+##
+## Ends in an error in state: 310.
+##
+## datas -> IDCTOR list(IDVAR) SET ctors SEMI . datas [ RCURLY ]
+## option(SEMI) -> SEMI . [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(IDVAR) SET ctors SEMI
+##
+
+Incomplete data definition
+
+prog: LCURLY CHAR UNDERSCORE
+##
+## Ends in an error in state: 319.
+##
+## toplevels -> toplevel . SEMI toplevels [ RCURLY ]
+## toplevels -> toplevel . option(SEMI) [ RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## toplevel
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+## In state 322, spurious reduction of production toplevel -> expr
+##
+
+Unexpected trailing token after a completed top level element
+
+repl_annot: WITH
+##
+## Ends in an error in state: 325.
+##
+## repl_annot' -> . repl_annot [ # ]
+##
+## The known suffix of the stack is as follows:
+##
+##
+
+Missing type expression
+
+repl_annot: LCURLY IDCTOR WITH
+##
+## Ends in an error in state: 327.
+##
+## repl_annot -> LCURLY annot . RCURLY EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY annot
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 22, spurious reduction of production annot -> annot2
+##
+
+Unexpected trailing token after a completed type expression
+
+repl_expr: WITH
+##
+## Ends in an error in state: 331.
+##
+## repl_expr' -> . repl_expr [ # ]
+##
+## The known suffix of the stack is as follows:
+##
+##
+
+Missing expression
+
+repl_expr: LCURLY CHAR WITH
+##
+## Ends in an error in state: 333.
+##
+## repl_expr -> LCURLY expr . RCURLY EOF [ # ]
+##
+## The known suffix of the stack is as follows:
+## LCURLY expr
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 166, spurious reduction of production expr3 -> expr4
+## In state 168, spurious reduction of production expr2_prefix -> expr3
+## In state 171, spurious reduction of production expr2_mul -> expr2_prefix
+## In state 172, spurious reduction of production expr2_add -> expr2_mul
+## In state 180, spurious reduction of production expr2_rcn -> expr2_add
+## In state 169, spurious reduction of production expr2_app -> expr2_rcn
+## In state 202, spurious reduction of production expr2_cmp -> expr2_app
+## In state 197, spurious reduction of production expr2_and -> expr2_cmp
+## In state 203, spurious reduction of production expr2_or -> expr2_and
+## In state 195, spurious reduction of production expr2 -> expr2_or
+## In state 209, spurious reduction of production expr -> expr2
+##
+
+Unexpected trailing token after a completed expression

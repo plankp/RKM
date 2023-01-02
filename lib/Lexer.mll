@@ -1,7 +1,8 @@
 {
+open Lexing
 open Parser
 
-exception Error of Parser.position * string
+exception Error of position * string
 
 let str_to_int base str =
   let mult = Z.of_int base in
@@ -21,9 +22,9 @@ let str_to_int base str =
     loop (Z.add (Z.mul hi mult) (Z.of_int lo)) i in
   loop Z.zero 0
 
-let movecol pos n = { pos with colno = pos.colno + n }
-let tabulate pos = { pos with colno = pos.colno land -8 + 8 }
-let new_line pos = { lineno = pos.lineno + 1; colno = 0 }
+let movecol pos n = { pos with pos_cnum = pos.pos_cnum + n }
+let tabulate pos = { pos with pos_cnum = pos.pos_cnum land -8 + 8 }
+let new_line pos = { pos with pos_lnum = pos.pos_lnum + 1; pos_cnum = 0 }
 }
 
 let newline = '\n' | '\r' | "\r\n"
@@ -35,6 +36,15 @@ let digit_hex = ['a'-'f' 'A'-'F' '0'-'9']
 let digit_dec = ['0'-'9']
 let digit_oct = ['0'-'7']
 let digit_bin = ['0' '1']
+
+let op_pre = '~'
+let op_mul = ['*' '/' '%' '&']
+let op_add = ['+' '-' '|' '^']
+let op_rcn = ':'
+let op_app = '@'
+let op_cmp = ['!' '=' '<' '>']
+let op_and = "&&"
+let op_or = "||"
 
 (* utf-8 decoding magic *)
 let usv_1 = ['\x00'-'\x7F']
@@ -60,6 +70,10 @@ rule read pos first = parse
   (* set of symbols *)
   | "=>" { (first, pos, movecol pos 2, IMPLIES) }
   | "->" { (first, pos, movecol pos 2, ARROW) }
+  | "||" { (first, pos, movecol pos 2, OR) }
+  | "&&" { (first, pos, movecol pos 2, AND) }
+  | "<<" { (first, pos, movecol pos 2, OP_VMUL "<<") }
+  | ">>" { (first, pos, movecol pos 2, OP_VMUL ">>") }
   | '(' { (first, pos, movecol pos 1, LPAREN) }
   | ')' { (first, pos, movecol pos 1, RPAREN) }
   | '[' { (first, pos, movecol pos 1, LSQUARE) }
@@ -69,10 +83,59 @@ rule read pos first = parse
   | ';' { (first, pos, movecol pos 1, SEMI) }
   | ',' { (first, pos, movecol pos 1, COMMA) }
   | ':' { (first, pos, movecol pos 1, COLON) }
+  | "=" { (first, pos, movecol pos 1, SET) }
+  | "|" { (first, pos, movecol pos 1, BAR) }
   | '\\' { (first, pos, movecol pos 1, SLASH) }
-  | opchar+ {
+  | '!' { (first, pos, movecol pos 1, NOT) }
+  | '-' { (first, pos, movecol pos 1, NEG) }
+  | op_pre opchar* {
     let s = Lexing.lexeme lexbuf in
-    (first, pos, movecol pos (String.length s), OPSEQ s) }
+    (first, pos, movecol pos (String.length s), OP_VPRE s)
+  }
+  | ':' op_pre opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_DPRE s)
+  }
+  | ':' op_mul opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_DMUL s)
+  }
+  | ':' op_add opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_DADD s)
+  }
+  | ':' op_rcn opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_DRCN s)
+  }
+  | ':' op_app opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_DAPP s)
+  }
+  | ':' op_cmp opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_DCMP s)
+  }
+  | op_mul opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_VMUL s)
+  }
+  | op_add opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_VADD s)
+  }
+  | op_rcn opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_VRCN s)
+  }
+  | op_app opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_VAPP s)
+  }
+  | op_cmp opchar* {
+    let s = Lexing.lexeme lexbuf in
+    (first, pos, movecol pos (String.length s), OP_VCMP s)
+  }
 
   (* keywords and literals *)
   | "extern" { (first, pos, movecol pos 6, EXTERN) }

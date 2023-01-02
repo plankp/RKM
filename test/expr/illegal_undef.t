@@ -1,4 +1,4 @@
   $ GenExpr << "EOF"
-  > a
+  > {a}
   > EOF
   Error: unknown binding named a

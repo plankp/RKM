@@ -1,5 +1,14 @@
 (library
  (name rkm)
- (libraries zarith))
+ (libraries zarith menhirLib))
 
 (ocamllex Lexer)
+
+(menhir
+ (modules Parser)
+ (flags --table --explain))
+
+(rule
+ (targets ParserMessages.ml)
+ (deps parser.messages Parser.mly)
+ (action (with-stdout-to %{targets} (run menhir --compile-errors %{deps}))))

@@ -22,4 +22,7 @@
  (depends
   (ocaml (>= 4.08.0))
   (dune (>= 2.8.0))
-  (zarith (>= 1.10))))
+  (zarith (>= 1.10))
+  menhir))
+
+(using menhir 2.1)

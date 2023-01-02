@@ -1,11 +1,11 @@
   $ GenAst << "EOF"
-  > a b c;
+  > a b c
   > d e
-  > f;
+  >  f
   > x
   >   y
-  >   z;
-  >    g h i;
+  >   z
+  > g h i
   > 
   > extern
   >   int_add : Int -> Int -> Int = "int_add#"
@@ -26,12 +26,12 @@
   > data
   >   NotEmptyList a = (::|) a [a]
   > 
-  > 1 ::| [];
-  > :~ 10;
-  > (::|);
+  > 1 ::| []
+  > :~ 10
+  > (::|)
   > 
-  > \match { (::|) head _ -> head };
-  > \match { head ::| _ -> head };
+  > \match { (::|) head _ -> head }
+  > \match { head ::| _ -> head }
   > EOF
   ((a b) c)
   ((d e) f)
