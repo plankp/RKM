@@ -80,13 +80,11 @@ aliases:
 
 alias:
   | n = IDCTOR; args = IDVAR*; SET; t = annot { DefAlias (n, args, t) }
-  | n = IDCTOR; args = IDVAR*; SET; LCURLY; ks = ctors; RCURLY { DefData (n, args, ks) }
+  | n = IDCTOR; args = IDVAR*; SET; ks = ctor+ { DefData (n, args, ks) }
 
-ctors:
-  | n = IDCTOR; args = annot3*; SEMI; xs = ctors { (n, args) :: xs }
-  | n = IDCTOR; args = annot3*; SEMI? { [(n, args)] }
-  | n = dop_name; args = annot3*; SEMI; xs = ctors { (n, args) :: xs }
-  | n = dop_name; args = annot3*; SEMI? { [(n, args)] }
+ctor:
+  | BAR; n = IDCTOR; args = annot3* { (n, args) }
+  | BAR; n = dop_name; args = annot3* { (n, args) }
 
 repl_expr:
   | LCURLY; e = expr; RCURLY; EOF { e }

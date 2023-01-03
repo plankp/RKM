@@ -2,7 +2,7 @@ Unlike before, due to the unification of data and type declaration syntax,
 they are both recursive
   $ GenKind << "EOF"
   > type Seq a = () -> Node a
-  >      Node a = { Nil; Cons a (Seq a) }
+  >      Node a = | Nil | Cons a (Seq a)
   > EOF
   (->) = (->) : * -> * -> *
   Bool = Bool : *
@@ -15,7 +15,7 @@ they are both recursive
   ref = ref : * -> *
 
   $ GenKind << "EOF"
-  > type Node a = { Nil; Cons a (Seq a) }
+  > type Node a = | Nil | Cons a (Seq a)
   >      Seq a = () -> Node a
   > EOF
   (->) = (->) : * -> * -> *

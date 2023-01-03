@@ -24,8 +24,9 @@ Of course, explicit braces are still allowed.
 ## Sample Snippet
 
 ```
-data MyList a = Cons a (MyList a)
-              | Nil
+type MyList a =
+       | Cons a (MyList a)
+       | Nil
 
 def pack (x : a) (y : b) = (x, y)
 def tail = \match

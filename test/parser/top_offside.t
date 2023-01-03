@@ -19,12 +19,16 @@
   >   Pair a b = (a, b)
   > 
   > type
-  >   Option a = { None ; Some a }
-  >   Either a b = { Left a ; Right b }
-  >   Seq a = { Nil ; Cons a (() -> Seq a) }
+  >   Option a =
+  >     | None | Some a
+  >   Either a b =
+  >     | Left a
+  >     | Right b
+  >   Seq a = | Nil | Cons a (() -> Seq a)
   > 
   > type
-  >   NotEmptyList a = { (::|) a [a] }
+  >   NotEmptyList a =
+  >     | (::|) a [a]
   > 
   > 1 ::| []
   > :~ 10
