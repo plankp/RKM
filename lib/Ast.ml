@@ -42,7 +42,10 @@ and ast_typ =
 
 and ast_vdef =
   | DefValue of string * ast_pat list * ast_expr
-  | DefAnnot of string * ast_typ
+  | DefAnnot of string * ast_cnst list * ast_typ
+
+and ast_cnst =
+  string * ast_typ list
 
 and ast_extern =
   string * ast_typ * string
@@ -151,8 +154,18 @@ and output_vdef ppf = function
     output_string ppf n;
     List.iter (fprintf ppf " %a" output_pat) args;
     fprintf ppf " = %a" output_expr e
-  | DefAnnot (n, t) ->
+  | DefAnnot (n, [], t) ->
     fprintf ppf "%s : %a" n output_typ t
+  | DefAnnot (n, (x :: xs), t) ->
+    fprintf ppf "%s : " n;
+    output_cnst ppf x;
+    List.iter (fprintf ppf ", %a" output_cnst) xs;
+    fprintf ppf " => %a" output_typ t
+
+and output_cnst ppf = function
+  | (k, args) ->
+    output_string ppf k;
+    List.iter (fprintf ppf " %a" output_typ) args
 
 and output_alias ppf = function
   | DefAlias (n, args, t) ->

@@ -48,6 +48,10 @@ open Ast
 %on_error_reduce annot2
 %on_error_reduce annot
 
+%on_error_reduce annot3_no_ctor
+%on_error_reduce annot2_no_ctor
+%on_error_reduce annot_no_ctor
+
 %%
 
 prog:
@@ -213,9 +217,9 @@ vbinds:
   | x = vbind; SEMI? { [x] }
 
 vbind:
-  | n = IDVAR; COLON; t = annot { DefAnnot (n, t) }
+  | n = IDVAR; COLON; t = cnsted_type { DefAnnot (n, fst t, snd t) }
   | n = IDVAR; ps = pat4*; SET; e = expr { DefValue (n, ps, e) }
-  | n = vop_name; COLON; t = annot { DefAnnot (n, t) }
+  | n = vop_name; COLON; t = cnsted_type { DefAnnot (n, fst t, snd t) }
   | n = vop_name; ps = pat4*; SET; e = expr { DefValue (n, ps, e) }
 
 pat:
@@ -290,9 +294,12 @@ annot2:
   | e = annot3 { e }
 
 annot3:
+  | k = IDCTOR { TypeCtor k }
+  | x = annot3_no_ctor { x }
+
+annot3_no_ctor:
   | UNDERSCORE { TypeIgn }
   | n = IDVAR { TypeVar n }
-  | k = IDCTOR { TypeCtor k }
   | REF { TypeCtor "ref" }
   | LSQUARE; RSQUARE { TypeCtor "[]" }
   | LSQUARE; e = annot; RSQUARE { TypeApp (TypeCtor "[]", e) }
@@ -306,3 +313,28 @@ annot3:
 list_annot:
   | x = annot; COMMA; xs = list_annot { x :: xs }
   | x = annot { [x] }
+
+cnsted_type:
+  | x = annot_no_ctor { ([], x) }
+  | k = IDCTOR; args = annot3*; IMPLIES; x = annot { ([k, args], x) }
+  | k = IDCTOR; args = annot3*; COMMA; tl = cnsted_type_tail {
+    ((k, args) :: fst tl, snd tl) }
+  | k = IDCTOR; args = annot3*; ARROW; x = annot {
+    let t = List.fold_left (fun f a -> TypeApp (f, a)) (TypeCtor k) args in
+    ([], TypeApp (TypeApp (TypeCtor "(->)", t), x)) }
+  | k = IDCTOR; args = annot3* {
+    let t = List.fold_left (fun f a -> TypeApp (f, a)) (TypeCtor k) args in
+    ([], t) }
+
+cnsted_type_tail:
+  | k = IDCTOR; args = annot3* COMMA tl = cnsted_type_tail {
+    ((k, args) :: fst tl, snd tl) }
+  | k = IDCTOR; args = annot3* IMPLIES x = annot { ([k, args], x) }
+
+annot_no_ctor:
+  | a = annot2_no_ctor; ARROW; r = annot { TypeApp (TypeApp (TypeCtor "(->)", a), r) }
+  | e = annot2_no_ctor { e }
+
+annot2_no_ctor:
+  | f = annot2_no_ctor; a = annot3 { TypeApp (f, a) }
+  | e = annot3_no_ctor { e }

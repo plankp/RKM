@@ -313,13 +313,13 @@ let rec organize_vdefs (vdefs : Ast.ast_vdef list) =
 
   let rec collect m = function
     | [] -> order m [] vdefs
-    | Ast.DefAnnot (n, annot) :: xs -> begin
+    | Ast.DefAnnot (n, cnsts, annot) :: xs -> begin
       match StrMap.find_opt n m with
         | Some (Some _, _) -> Error ["duplicate type annotation for " ^ n]
         | Some (None, defs) ->
-          collect (StrMap.add n (Some annot, defs) m) xs
+          collect (StrMap.add n (Some (cnsts, annot), defs) m) xs
         | None ->
-          collect (StrMap.add n (Some annot, None) m) xs
+          collect (StrMap.add n (Some (cnsts, annot), None) m) xs
     end
     | Ast.DefValue (n, args, e) :: xs -> begin
       let argc = List.length args in
@@ -460,7 +460,7 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
       let (bty, ctx) = mk_tvar ctx "" in
       let new_ids = StrMap.add n (C.EVar (n, Z.zero), bty) new_ids in
       fill_scope new_ids rules ctx xs
-    | (n, Some annot, _) :: xs ->
+    | (n, Some (_, annot), _) :: xs ->
       let* (bty, kind, f, _, ctx) = visit_ast_type true (Some StrMap.empty) ctx annot in
       let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
       let qs = T.collect_free_tvars bty in
