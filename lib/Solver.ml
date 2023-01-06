@@ -1,10 +1,13 @@
 open Printf
 module T = Type
 module V = VarInfo
+module C = Core
 
 type cnst =
   | CnstEq of V.Set.t * T.t * T.t
   | CnstSeq of cnst list
+  | CnstPred of C.expr ref * T.pred
+  | CnstImply of (C.expr * T.pred) list * cnst
 
 let ( let* ) = Result.bind
 
@@ -42,6 +45,8 @@ let unify ?(fixed_tvars = V.Set.empty) (p : T.t) (q : T.t) =
       match (p, q) with
         | (TQuant _, _) | (_, TQuant _) ->
           failwith "UNKNOWN QUANTIFIER DURING UNIFY STEP"
+        | (TPred _, _) | (_, TPred _) ->
+          failwith "UNKNOWN PREDICATE DURING UNIFY STEP"
 
         | (TRigid p, TRigid q) when p = q ->
           loop changed rem bad tl
@@ -95,29 +100,104 @@ let unify ?(fixed_tvars = V.Set.empty) (p : T.t) (q : T.t) =
   loop false [] [] [p, q]
 
 let solve (cnst : cnst list) =
-  let visit_list list =
-    let rec loop changed acc = function
-      | [] -> Ok (changed, acc)
-      | CnstSeq ys :: xs ->
-        let* (changed, acc) = loop changed acc ys in
-        loop changed acc xs
-      | CnstEq (fixed_tvars, p, q) :: xs ->
-        let* (f, rem) = unify ~fixed_tvars p q in
-        loop (f || changed) (List.rev_append rem acc) xs in
-    loop false [] list in
+  let rec search_ctx p = function
+    | [] -> None
+    | ctx :: xs ->
+      match List.find_opt (fun (_, impl) -> T.pred_equiv p impl) ctx with
+        | None -> search_ctx p xs
+        | Some (e, _) -> Some e in
+
+  let rec visit ctx = function
+    | CnstSeq xs ->
+      let rec loop changed acc = function
+        | [] -> begin
+          match acc with
+            | [x] -> Ok (changed, x)
+            | _ -> Ok (changed, CnstSeq acc)
+        end
+        | x :: xs ->
+          let* (f, rem) = visit ctx x in
+          let changed = f || changed in
+          match rem with
+            | CnstSeq ys -> loop changed (List.rev_append ys acc) xs
+            | rem -> loop changed (rem :: acc) xs in
+      loop false [] xs
+
+    | CnstEq (fixed_tvars, p, q) -> begin
+      let* (changed, rem) = unify ~fixed_tvars p q in
+      match rem with
+        | [x] -> Ok (changed, x)
+        | _ -> Ok (changed, CnstSeq rem)
+    end
+
+    | CnstImply ([], k) -> visit ctx k
+
+    | CnstImply (new_ctx, k) -> begin
+      let* (f, rem) = visit (new_ctx :: ctx) k in
+      match rem with
+        | CnstSeq [] -> Ok (f, CnstSeq [])
+        | _ -> Ok (f, CnstImply (new_ctx, rem))
+    end
+
+    | CnstPred (r, p) -> begin
+      match p with
+        | PredTraitEq t ->
+          match T.unwrap t with
+            | TInt | TChr | TStr as t ->
+              r := C.EVar (sprintf "@$Impl[Eq %s]" (T.to_string t), Z.zero);
+              Ok (false, CnstSeq [])
+
+            | TCons (TCtorVar k, []) as t when k == T.varBool ->
+              r := C.EVar (sprintf "@$Impl[Eq %s]" (T.to_string t), Z.zero);
+              Ok (false, CnstSeq [])
+
+            | TCons (TCtorVar k, [elt]) when k == T.varList || k == T.varRef ->
+              let (tc, dep) = C.mk_empty_hole () in
+              r := C.EApp (C.EVar ("@$Impl[Eq List a]", Z.zero), tc);
+              visit ctx (CnstPred (dep, PredTraitEq elt))
+
+            | TTup [] ->
+              r := C.EVar (sprintf "@$Impl[Eq ()]", Z.zero);
+              Ok (false, CnstSeq [])
+
+            | TTup ys ->
+              let buf = Buffer.create 32 in
+              Buffer.add_string buf "@$Impl[Eq (";
+              let rec emit_deps deps xs = function
+                | [] ->
+                  Buffer.add_string buf ")]";
+                  r := C.EApp (C.EVar (Buffer.contents buf, Z.zero), C.ETup (List.rev deps));
+                  visit ctx (CnstSeq xs)
+                | t :: ts ->
+                  let (tc, dep) = C.mk_empty_hole () in
+                  Buffer.add_char buf ',';
+                  emit_deps (tc :: deps) (CnstPred (dep, PredTraitEq t) :: xs) ts in
+              emit_deps [] [] ys
+
+            | t ->
+              match search_ctx p ctx with
+                | Some e -> r := e; Ok (false, CnstSeq [])
+                | None -> Ok (false, CnstPred (r, PredTraitEq t))
+    end in
 
   let rec fixpoint cnst =
-    let* (changed, cnst) = visit_list cnst in
-    if not changed || cnst = [] then Ok cnst
-    else fixpoint cnst in
+    let* (changed, cnst) = visit [] cnst in
+    match (cnst, changed) with
+      | (CnstSeq [], _) -> Ok []
+      | (CnstSeq r, false) -> Ok r
+      | (r, false) -> Ok [r]
+      | (_, true) -> fixpoint cnst in
 
-  fixpoint cnst
+  fixpoint (CnstSeq cnst)
 
-let explain_remaining : cnst -> string = function
+let rec explain_remaining : cnst -> string = function
   | CnstEq (s, (T.TVar (n, _) as p), q) when V.Set.mem n s ->
     sprintf "Unification of types %s with %s would result in loss of generality"
       (T.to_string p) (T.to_string q)
   | CnstEq (s, q, (T.TVar (n, _) as p)) when V.Set.mem n s->
     sprintf "Unification of types %s with %s would result in loss of generality"
       (T.to_string p) (T.to_string q)
+  | CnstPred (_, p) ->
+    sprintf "Not sure how to resolve %s" (T.pred_to_string p)
+  | CnstImply (_, q) -> explain_remaining q
   | _ -> "Impossible type unification"

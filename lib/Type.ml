@@ -16,12 +16,18 @@ type t =
   | TTup of t list
   | TCons of tctor * t list
 
+(* for traits and other future constraints *)
+  | TPred of pred * t
+
 (* for higher kinded stuff *)
   | TKind
   | TQuant of V.t * t (* quantized over rigid variables *)
   | TApp of t * t
 
 and tvinfo = V.t * t option ref
+
+and pred =
+  | PredTraitEq of t
 
 and tctor =
   | TCtorArr
@@ -101,6 +107,8 @@ let rec output ppf = function
   | TCons (k, x :: xs) ->
     fprintf ppf "%s %a" (tctor_to_string k) output (check_app_prec x);
     List.iter (fun x -> fprintf ppf " %a" output (check_app_prec x)) xs
+  | TPred (p, t) ->
+    fprintf ppf "%a => %a" output_pred p output t
   | TQuant (n, t) ->
     fprintf ppf "(\\%a. %a)" V.output n output t
 
@@ -130,12 +138,22 @@ and to_string = function
     bprintf buf "%s %s" (tctor_to_string k) (to_string (check_app_prec x));
     List.iter (fun x -> bprintf buf " %s" (to_string (check_app_prec x))) xs;
     Buffer.contents buf
+  | TPred (p, t) ->
+    sprintf "%s => %s" (pred_to_string p) (to_string t)
   | TQuant (n, t) ->
     sprintf "(\\%s. %s)" (V.to_string n) (to_string t)
 
 and tctor_to_string = function
   | TCtorArr -> "(->)"
   | TCtorVar k -> k.name
+
+and output_pred ppf = function
+  | PredTraitEq t ->
+    fprintf ppf "Eq %a" output (check_app_prec t)
+
+and pred_to_string = function
+  | PredTraitEq t ->
+    sprintf "Eq %s" (to_string (check_app_prec t))
 
 and check_app_prec = function
   | TVar (_, { contents = Some _ }) as t -> check_app_prec (unwrap t)
@@ -144,14 +162,46 @@ and check_app_prec = function
 
 and check_arr_prec = function
   | TVar (_, { contents = Some _ }) as t -> check_arr_prec (unwrap t)
-  | TArr _ as q -> TTup [q]
+  | TArr _ | TPred _ as q -> TTup [q]
   | q -> q
 
-let unpeel_quants (t : t) =
-  let rec loop acc = function
-    | TQuant (n, t) -> loop (n :: acc) t
-    | t -> (acc, t) in
-  loop [] t
+let rec equiv (p : t) (q : t) : bool =
+  let rec loop = function
+    | [] -> true
+    | (p, q) :: tl ->
+      let p = unwrap p in
+      let q = unwrap q in
+      let rec collect_new acc = function
+        | ([], []) -> loop acc
+        | (x :: xs, y :: ys) -> collect_new ((x, y) :: acc) (xs, ys)
+        | _ -> false in
+      match (p, q) with
+        | (TQuant _, _) | (_, TQuant _) ->
+          failwith "UNKNOWN QUANTIFIER FOR EQUIV"
+        | (TPred _, _) | (_, TPred _) ->
+          failwith "UNKNOWN PREDICATE FOR EQUIV"
+
+        | (TVar (p, _), TVar (q, _)) | (TRigid p, TRigid q) ->
+          if p = q then loop tl else false
+
+        | (TChr, TChr) | (TStr, TStr) | (TInt, TInt) | (TKind, TKind) ->
+          loop tl
+
+        | (TArr (f1, a1), TArr (f2, a2)) | (TApp (f1, a1), TApp (f2, a2)) ->
+          loop ((f1, f2) :: (a1, a2) :: tl)
+
+        | (TTup xs, TTup ys) | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
+          collect_new tl (xs, ys)
+
+        | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) when k1 == k2 ->
+          collect_new tl (xs, ys)
+
+        | _ -> false in
+  loop [p, q]
+
+and pred_equiv (p : pred) (q : pred) : bool =
+  match (p, q) with
+    | (PredTraitEq p, PredTraitEq q) -> equiv p q
 
 let rec subst ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
   | TChr | TStr | TInt | TKind as t -> t
@@ -170,6 +220,8 @@ let rec subst ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
   | TTup xs -> TTup (List.map (subst ~rigid ~weak) xs)
   | TCons (k, xs) -> TCons (k, List.map (subst ~rigid ~weak) xs)
   | TApp (p, q) -> TApp (subst ~rigid ~weak p, subst ~rigid ~weak q)
+  | TPred (PredTraitEq p, q) ->
+    TPred (PredTraitEq (subst ~weak ~rigid p), subst ~weak ~rigid q)
   | TQuant (n, t) -> TQuant (n, subst ~weak ~rigid:(V.Map.remove n rigid) t)
 
 let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
@@ -186,6 +238,8 @@ let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
       | (TQuant (n, t), q) -> eval (V.Map.add n q map) env t
       | (p, q) -> TApp (p, q)
   end
+  | TPred (PredTraitEq p, q) ->
+    TPred (PredTraitEq (eval map env p), eval map env q)
   | TQuant (n, t) ->
     let (n, map, env) = V.def_var (fun n -> TRigid n) n map env in
     TQuant (n, eval map env t)
@@ -213,6 +267,7 @@ let rec contains_quant = function
   | TVar _ | TRigid _ | TChr | TStr | TInt | TKind -> false
   | TArr (p, q) | TApp (p, q) -> contains_quant p || contains_quant q
   | TTup xs | TCons (_, xs) -> List.exists contains_quant xs
+  | TPred (PredTraitEq p, q) -> contains_quant p || contains_quant q
 
 let rec contains_tvar n = function
   | TVar (_, { contents = Some _ }) as t -> contains_tvar n (unwrap t)
@@ -222,6 +277,8 @@ let rec contains_tvar n = function
     contains_tvar n p || contains_tvar n q
   | TTup xs | TCons (_, xs) ->
     List.exists (contains_tvar n) xs
+  | TPred (PredTraitEq p, q) ->
+    contains_tvar n p || contains_tvar n q
   | TQuant (_, t) -> contains_tvar n t
 
 let fold_free_tvars (f : tvinfo -> 'a -> 'a) (t : t) (i : 'a) : 'a =
@@ -232,6 +289,7 @@ let fold_free_tvars (f : tvinfo -> 'a -> 'a) (t : t) (i : 'a) : 'a =
     | (TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop i xs
     | (TArr (p, q) | TApp (p, q)) :: xs -> loop i (p :: q :: xs)
     | (TTup ys | TCons (_, ys)) :: xs -> loop (loop i ys) xs
+    | TPred (PredTraitEq p, q) :: xs -> loop i (p :: q :: xs)
     | TQuant (_, t) :: xs -> loop i (t :: xs) in
   loop i [t]
 

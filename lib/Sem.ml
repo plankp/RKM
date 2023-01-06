@@ -15,6 +15,7 @@ type context = {
   idenv : vtmap list;
 
   fixed_tvars : V.Set.t;
+  implications : (C.expr * T.pred) list;
 }
 
 type toplevel_analysis =
@@ -50,6 +51,7 @@ let core_context : context = {
   tvenv = [];
 
   fixed_tvars = V.Set.empty;
+  implications = [];
 }
 
 let ( let* ) = Result.bind
@@ -153,6 +155,19 @@ let visit_ast_type (allow_ign : bool) (next : tkmap option) (ctx : context) (ast
   let ty = Type.normalize ty in
   if Type.contains_quant ty then Error ["unsaturated type aliases are not allowed"]
   else Ok (ty, kind, f, next, ctx)
+
+let visit_contexted_type (ctx : context) (cnsts : Ast.ast_cnst list) (annot : Ast.ast_typ) =
+  let rec loop acc rules m ctx = function
+    | [] ->
+      let* (bty, kind, f, m, ctx) = visit_ast_type true m ctx annot in
+      let bty = List.fold_left (fun t p -> T.TPred (p, t)) bty acc in
+      Ok (bty, kind, S.merge_cnst (f :: rules), Option.get m, ctx)
+    | ("Eq", [t]) :: xs ->
+      let* (t, kind, f, m, ctx) = visit_ast_type false m ctx t in
+      let rules = S.CnstEq (V.Set.empty, T.TKind, kind) :: f :: rules in
+      loop (T.PredTraitEq t :: acc) rules m ctx xs
+    | (n, _) :: _ -> Error ["unknown trait " ^ n] in
+  loop [] [] (Some StrMap.empty) ctx cnsts
 
 let collect_decl_tvs (ctx : context) (tvargs : string list) =
   let rec loop map acc errors ctx = function
@@ -403,30 +418,30 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
         let no_pending = rules = [] in
         let rec loop new_ids acc rules ctx = function
           | [] -> Ok (new_ids, acc, rules, ctx)
-          | (n, bty, has_annot, e) :: xs ->
+          | (n, bty, annot_info, e) :: xs ->
             if not recur || Core.is_valid_rec ds e then begin
               let monos =
                 if Core.is_syntactic_value e then monos
                 else T.dangerous_vars ~acc:monos bty in
-              if has_annot then
-                let (_, annot) = StrMap.find n new_ids in
-                let (_, ta) = T.unpeel_quants annot in
-                let rules = S.CnstEq (monos, ta, bty) :: rules in
-                loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
-              else if no_pending then
-                let qs = T.collect_free_tvars bty in
-                let filterf (n, _) = not @@ V.Set.mem n monos in
-                let (qs, m, ctx) = gen ctx (List.filter filterf qs) in
-                let bty = T.subst ~weak:m bty in
-                let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
+              match annot_info with
+                | Some (preds, ta) ->
+                  let f = S.CnstImply (preds, S.CnstEq (monos, ta, bty)) in
+                  loop new_ids (((n, Z.zero), e) :: acc) (f :: rules) ctx xs
+                | _ ->
+                  if no_pending then
+                    let qs = T.collect_free_tvars bty in
+                    let filterf (n, _) = not @@ V.Set.mem n monos in
+                    let (qs, m, ctx) = gen ctx (List.filter filterf qs) in
+                    let bty = T.subst ~weak:m bty in
+                    let qt = List.fold_left (fun t q -> T.TQuant (q, t)) bty qs in
 
-                let updatef = function
-                  | Some (t, _) -> Some (t, qt)
-                  | _ -> failwith "IMPOSSIBLE RECURSIVE PLACEHOLDER" in
-                let new_ids = StrMap.update n updatef new_ids in
-                loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
-              else
-                loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
+                    let updatef = function
+                      | Some (t, _) -> Some (t, qt)
+                      | _ -> failwith "IMPOSSIBLE RECURSIVE PLACEHOLDER" in
+                    let new_ids = StrMap.update n updatef new_ids in
+                    loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
+                  else
+                    loop new_ids (((n, Z.zero), e) :: acc) rules ctx xs
             end else Error ["recursive binding cannot have initializer of this form"] in
         loop new_ids [] rules ctx rbinds in
 
@@ -437,11 +452,29 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
     | (n, None, defs) :: xs ->
       let (_, bty) = StrMap.find n new_ids in
       let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
-      eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, false, e) :: acc) rules ctx xs
+      eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, None, e) :: acc) rules ctx xs
     | (n, Some _, defs) :: xs ->
-      let (bty, ctx) = mk_tvar ctx "" in
-      let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
-      eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, true, e) :: acc) rules ctx xs in
+      let rec unpeel preds impls iargs ctx = function
+        | T.TQuant (_, t) -> unpeel preds impls iargs ctx t
+        | T.TPred (p, t) ->
+          let (n, ctx) = mk_name ctx "@" in
+          let impl = (C.EVar n, p) in
+          unpeel (impl :: preds) (impl :: impls) (n :: iargs) ctx t
+        | ta ->
+          let (bty, ctx) = mk_tvar ctx "" in
+          let old_implications = ctx.implications in
+          let ctx = { ctx with implications = impls } in
+          let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
+          let ctx = { ctx with implications = old_implications } in
+          let (e, ctx) = match iargs with
+            | [] -> (e, ctx)
+            | [x] -> (C.ELam (x, e), ctx)
+            | xs ->
+              let (n, ctx) = mk_name ctx "" in
+              (C.ELam (n, C.ECase (C.EVar n, [C.PatUnpack (List.rev xs), e])), ctx) in
+          eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, Some (preds, ta), e) :: acc) rules ctx xs in
+      let (_, annot) = StrMap.find n new_ids in
+      unpeel [] ctx.implications [] ctx annot in
 
   let rec fill_scope new_ids rules ctx = function
     | [] ->
@@ -460,8 +493,8 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
       let (bty, ctx) = mk_tvar ctx "" in
       let new_ids = StrMap.add n (C.EVar (n, Z.zero), bty) new_ids in
       fill_scope new_ids rules ctx xs
-    | (n, Some (_, annot), _) :: xs ->
-      let* (bty, kind, f, _, ctx) = visit_ast_type true (Some StrMap.empty) ctx annot in
+    | (n, Some (cnsts, annot), _) :: xs ->
+      let* (bty, kind, f, _, ctx) = visit_contexted_type ctx cnsts annot in
       let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
       let qs = T.collect_free_tvars bty in
       let filterf (n, _) = not @@ V.Set.mem n monos in
@@ -476,8 +509,20 @@ and lookup_var n ty ctx errf =
   match lookup_env n ctx.idenv with
     | None -> Error [errf ()]
     | Some (e, vty) ->
+      let rec fill_implicits iargs rules ctx = function
+        | T.TPred (p, t) ->
+          let (tc, dep) = C.mk_empty_hole () in
+          let rules = S.CnstImply (ctx.implications, S.CnstPred (dep, p)) :: rules in
+          fill_implicits (tc :: iargs) rules ctx t
+        | t ->
+          let rules = S.CnstEq (ctx.fixed_tvars, ty, t) :: rules in
+          let e = match iargs with
+            | [] -> e
+            | [x] -> C.EApp (e, x)
+            | xs -> C.EApp (e, C.ETup (List.rev xs)) in
+          Ok (e, S.merge_cnst rules, ctx) in
       let (_, instty, ctx) = inst ctx vty in
-      Ok (e, S.CnstEq (ctx.fixed_tvars, ty, instty), ctx)
+      fill_implicits [] [] ctx instty
 
 and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
   | Ast.Lit lit ->
