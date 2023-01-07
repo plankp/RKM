@@ -27,13 +27,13 @@ type t =
 and tvinfo = V.t * t option ref
 
 and pred =
-  | PredTraitEq of t
+  | PredTrait of trait * t
 
 and tctor =
   | TCtorArr
   | TCtorVar of variant
 
-and variant = {
+and variant = Variant of {
   name : string;
   quants : V.t list;
 
@@ -46,8 +46,24 @@ and variant = {
   cases : (string, t list) Hashtbl.t;
 }
 
+and trait = Trait of {
+  name : string;
+  quant : V.t;
+
+  (*
+   * e.g. impl Eq a, Eq b, Eq c => Eq (a, b, c) with...
+   * set  = { a, b, c }
+   * t    = TTup (TRigid a, TRigid b, TRigid c)
+   * deps = [Eq a; Eq b; Eq c]
+   *)
+  mutable allowed : (V.Set.t * t * trait_dep) list;
+}
+
+and trait_dep =
+  (trait * V.t) list
+
 (* data Bool = True | False *)
-let varBool : variant = {
+let varBool : variant = Variant {
   name = "Bool";
   quants = [];
   cases = Hashtbl.create 2;
@@ -55,11 +71,12 @@ let varBool : variant = {
 
 let tyBool = TCons (TCtorVar varBool, [])
 let () =
-  Hashtbl.replace varBool.cases "True" [];
-  Hashtbl.replace varBool.cases "False" []
+  let Variant { cases; _ } = varBool in
+  Hashtbl.replace cases "True" [];
+  Hashtbl.replace cases "False" []
 
 (* data [a] = [] | a :: [a] *)
-let varList : variant = {
+let varList : variant = Variant {
   name = "[]";
   quants = [("a", Z.zero)];
   cases = Hashtbl.create 2;
@@ -67,11 +84,12 @@ let varList : variant = {
 
 let tyList t = TCons (TCtorVar varList, [t])
 let () =
-  Hashtbl.replace varList.cases "[]" [];
-  Hashtbl.replace varList.cases "(::)" [TRigid ("a", Z.zero); tyList (TRigid ("a", Z.zero))]
+  let Variant { cases; _ } = varList in
+  Hashtbl.replace cases "[]" [];
+  Hashtbl.replace cases "(::)" [TRigid ("a", Z.zero); tyList (TRigid ("a", Z.zero))]
 
 (* data ref a = ref a *)
-let varRef : variant = {
+let varRef : variant = Variant {
   name = "ref";
   quants = [("a", Z.zero)];
   cases = Hashtbl.create 1;
@@ -79,7 +97,15 @@ let varRef : variant = {
 
 let tyRef t = TCons (TCtorVar varRef, [t])
 let () =
-  Hashtbl.replace varRef.cases "ref" [TRigid ("a", Z.zero)]
+  let Variant { cases; _ } = varRef in
+  Hashtbl.replace cases "ref" [TRigid ("a", Z.zero)]
+
+let traitEq : trait = Trait {
+  name = "Eq";
+  quant = ("a", Z.zero);
+  allowed = [];
+}
+
 
 let rec unwrap : t -> t = function
   | TVar (_, ({ contents = Some t } as r)) ->
@@ -145,15 +171,15 @@ and to_string = function
 
 and tctor_to_string = function
   | TCtorArr -> "(->)"
-  | TCtorVar k -> k.name
+  | TCtorVar (Variant { name; _ }) -> name
 
 and output_pred ppf = function
-  | PredTraitEq t ->
-    fprintf ppf "Eq %a" output (check_app_prec t)
+  | PredTrait (Trait { name; _}, x) ->
+    fprintf ppf "%s %a" name output (check_app_prec x)
 
 and pred_to_string = function
-  | PredTraitEq t ->
-    sprintf "Eq %s" (to_string (check_app_prec t))
+  | PredTrait (Trait { name; _}, x) ->
+    sprintf "%s %s" name (to_string (check_app_prec x))
 
 and check_app_prec = function
   | TVar (_, { contents = Some _ }) as t -> check_app_prec (unwrap t)
@@ -165,43 +191,66 @@ and check_arr_prec = function
   | TArr _ | TPred _ as q -> TTup [q]
   | q -> q
 
-let rec equiv (p : t) (q : t) : bool =
-  let rec loop = function
-    | [] -> true
+let init_last head tail =
+  let rec loop acc head = function
+    | [] -> (List.rev acc, head)
+    | x :: xs -> loop (head :: acc) x xs in
+  loop [] head tail
+
+let rec decompose (p : t) (q : t) =
+  decompose_pairs [p, q]
+
+and decompose_pairs (pairs : (t * t) list) =
+  let rec loop rem bad = function
+    | [] -> if bad = [] then Ok rem else Error bad
     | (p, q) :: tl ->
       let p = unwrap p in
       let q = unwrap q in
       let rec collect_new acc = function
-        | ([], []) -> loop acc
+        | ([], []) -> loop rem bad acc
         | (x :: xs, y :: ys) -> collect_new ((x, y) :: acc) (xs, ys)
-        | _ -> false in
+        | _ -> loop rem ((p, q) :: bad) tl in
       match (p, q) with
-        | (TQuant _, _) | (_, TQuant _) ->
-          failwith "UNKNOWN QUANTIFIER FOR EQUIV"
-        | (TPred _, _) | (_, TPred _) ->
-          failwith "UNKNOWN PREDICATE FOR EQUIV"
+        | (TQuant _, _) | (_, TQuant _) | (TPred _, _) | (_, TPred _) ->
+          (* since we can't decompose this, have the caller deal with it *)
+          loop ((p, q) :: rem) bad tl
+        | (TChr, TChr) | (TStr, TStr) | (TInt, TInt)
+        | (TKind, TKind) ->
+          loop rem bad tl
 
-        | (TVar (p, _), TVar (q, _)) | (TRigid p, TRigid q) ->
-          if p = q then loop tl else false
+        | (TRigid p, TRigid q) when p = q ->
+          loop rem bad tl
 
-        | (TChr, TChr) | (TStr, TStr) | (TInt, TInt) | (TKind, TKind) ->
-          loop tl
+        | (TArr (f1, a1), TArr (f2, a2))
+        | (TApp (f1, a1), TApp (f2, a2)) ->
+          loop rem bad ((f1, f2) :: (a1, a2) :: tl)
 
-        | (TArr (f1, a1), TArr (f2, a2)) | (TApp (f1, a1), TApp (f2, a2)) ->
-          loop ((f1, f2) :: (a1, a2) :: tl)
-
-        | (TTup xs, TTup ys) | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
+        | (TTup xs, TTup ys)
+        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
           collect_new tl (xs, ys)
 
         | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) when k1 == k2 ->
           collect_new tl (xs, ys)
 
-        | _ -> false in
-  loop [p, q]
+        | (TCons (k, x :: xs), TApp (f, a))
+        | (TApp (f, a), TCons (k, x :: xs)) ->
+          let (init, last) = init_last x xs in
+          loop rem bad ((TCons (k, init), f) :: (last, a) :: tl)
 
-and pred_equiv (p : pred) (q : pred) : bool =
-  match (p, q) with
-    | (PredTraitEq p, PredTraitEq q) -> equiv p q
+        | (TArr (p, q), TApp (f, a))
+        | (TApp (f, a), TArr (p, q)) ->
+          loop rem bad ((TCons (TCtorArr, [p]), f) :: (q, a) :: tl)
+
+        (* we NEVER unify here *)
+        | (TVar (n1, _), TVar (n2, _)) ->
+          if n1 = n2 then loop rem bad tl
+          else loop ((p, q) :: rem) bad tl
+
+        | (TVar _, _) | (_, TVar _) ->
+          loop ((p, q) :: rem) bad tl
+
+        | _ -> loop rem ((p, q) :: bad) tl in
+  loop [] [] pairs
 
 let rec subst ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
   | TChr | TStr | TInt | TKind as t -> t
@@ -220,8 +269,8 @@ let rec subst ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
   | TTup xs -> TTup (List.map (subst ~rigid ~weak) xs)
   | TCons (k, xs) -> TCons (k, List.map (subst ~rigid ~weak) xs)
   | TApp (p, q) -> TApp (subst ~rigid ~weak p, subst ~rigid ~weak q)
-  | TPred (PredTraitEq p, q) ->
-    TPred (PredTraitEq (subst ~weak ~rigid p), subst ~weak ~rigid q)
+  | TPred (PredTrait (trait, x), q) ->
+    TPred (PredTrait (trait, subst ~rigid ~weak x), subst ~weak ~rigid q)
   | TQuant (n, t) -> TQuant (n, subst ~weak ~rigid:(V.Map.remove n rigid) t)
 
 let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
@@ -238,8 +287,8 @@ let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
       | (TQuant (n, t), q) -> eval (V.Map.add n q map) env t
       | (p, q) -> TApp (p, q)
   end
-  | TPred (PredTraitEq p, q) ->
-    TPred (PredTraitEq (eval map env p), eval map env q)
+  | TPred (PredTrait (trait, x), q) ->
+    TPred (PredTrait (trait, eval map env x), eval map env q)
   | TQuant (n, t) ->
     let (n, map, env) = V.def_var (fun n -> TRigid n) n map env in
     TQuant (n, eval map env t)
@@ -247,13 +296,13 @@ let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
 let normalize (t : t) =
   eval V.Map.empty V.Set.empty t
 
-let inst_variant (v : variant) (args : t list) =
+let inst_variant (Variant v : variant) (args : t list) =
   let foldf m q arg = V.Map.add q arg m in
   let env = List.fold_left2 foldf V.Map.empty v.quants args in
   let foldf k args acc = (k, List.map (eval env V.Set.empty) args) :: acc in
   Hashtbl.fold foldf v.cases []
 
-let inst_case (v : variant) (k : string) (targs : t list) =
+let inst_case (Variant v : variant) (k : string) (targs : t list) =
   match Hashtbl.find_opt v.cases k with
     | None -> None
     | Some args ->
@@ -267,7 +316,7 @@ let rec contains_quant = function
   | TVar _ | TRigid _ | TChr | TStr | TInt | TKind -> false
   | TArr (p, q) | TApp (p, q) -> contains_quant p || contains_quant q
   | TTup xs | TCons (_, xs) -> List.exists contains_quant xs
-  | TPred (PredTraitEq p, q) -> contains_quant p || contains_quant q
+  | TPred (PredTrait (_, x), q) -> contains_quant x || contains_quant q
 
 let rec contains_tvar n = function
   | TVar (_, { contents = Some _ }) as t -> contains_tvar n (unwrap t)
@@ -277,8 +326,8 @@ let rec contains_tvar n = function
     contains_tvar n p || contains_tvar n q
   | TTup xs | TCons (_, xs) ->
     List.exists (contains_tvar n) xs
-  | TPred (PredTraitEq p, q) ->
-    contains_tvar n p || contains_tvar n q
+  | TPred (PredTrait (_, x), q) ->
+    contains_tvar n x || contains_tvar n q
   | TQuant (_, t) -> contains_tvar n t
 
 let fold_free_tvars (f : tvinfo -> 'a -> 'a) (t : t) (i : 'a) : 'a =
@@ -289,7 +338,7 @@ let fold_free_tvars (f : tvinfo -> 'a -> 'a) (t : t) (i : 'a) : 'a =
     | (TRigid _ | TChr | TStr | TInt | TKind) :: xs -> loop i xs
     | (TArr (p, q) | TApp (p, q)) :: xs -> loop i (p :: q :: xs)
     | (TTup ys | TCons (_, ys)) :: xs -> loop (loop i ys) xs
-    | TPred (PredTraitEq p, q) :: xs -> loop i (p :: q :: xs)
+    | TPred (PredTrait (_, x), q) :: xs -> loop i (x :: q :: xs)
     | TQuant (_, t) :: xs -> loop i (t :: xs) in
   loop i [t]
 

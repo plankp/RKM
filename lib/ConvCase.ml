@@ -115,7 +115,7 @@ let rec conv (id : Z.t) (s : scrut list) (m : pat_matrix) =
               let m = specialize_tup s xs pivot m in
               ECase (s, [PatUnpack (List.rev decons), conv id rem m])
 
-            | TCons (TCtorVar k, args) ->
+            | TCons (TCtorVar (Variant k), args) ->
               (* compute the type substitution for instantiating each case *)
               let foldf m q arg = V.Map.add q arg m in
               let env = List.fold_left2 foldf V.Map.empty k.quants args in

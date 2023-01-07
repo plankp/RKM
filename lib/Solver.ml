@@ -15,12 +15,6 @@ let merge_cnst = function
   | [t] -> t
   | xs -> CnstSeq xs
 
-let init_last head tail =
-  let rec loop acc head = function
-    | [] -> (List.rev acc, head)
-    | x :: xs -> loop (head :: acc) x xs in
-  loop [] head tail
-
 type bad_unify =
   | Mismatch of T.t * T.t
   | Cyclic of T.t * T.t
@@ -33,80 +27,100 @@ let explain : bad_unify -> string = function
 
 let unify ?(fixed_tvars = V.Set.empty) (p : T.t) (q : T.t) =
   let can_mutate n = not @@ V.Set.mem n fixed_tvars in
-  let rec loop changed rem bad = function
-    | [] -> if bad = [] then Ok (changed, rem) else Error bad
-    | (p, q) :: tl ->
-      let p = T.unwrap p in
-      let q = T.unwrap q in
-      let rec collect_new acc = function
-        | ([], []) -> loop changed rem bad acc
-        | (x :: xs, y :: ys) -> collect_new ((x, y) :: acc) (xs, ys)
-        | _ -> loop changed rem (Mismatch (p, q) :: bad) tl in
-      match (p, q) with
-        | (TQuant _, _) | (_, TQuant _) ->
-          failwith "UNKNOWN QUANTIFIER DURING UNIFY STEP"
-        | (TPred _, _) | (_, TPred _) ->
-          failwith "UNKNOWN PREDICATE DURING UNIFY STEP"
+  let rec loop changed rem xs =
+    match T.decompose_pairs xs with
+      | Error xs ->
+        Error (List.rev_map (fun (p, q) -> Mismatch (p, q)) xs)
+      | Ok [] -> Ok (changed, rem)
+      | Ok xs ->
+        let rec tail changed rem acc = function
+          | [] -> loop changed rem acc
+          | (p, q) :: xs ->
+            let p = T.unwrap p in
+            let q = T.unwrap q in
+            match (p, q) with
+              | (TQuant _, _) | (_, TQuant _) ->
+                failwith "UNKNOWN QUANTIFIER DURING UNIFY STEP"
+              | (TPred _, _) | (_, TPred _) ->
+                failwith "UNKNOWN PREDICATE DURING UNIFY STEP"
 
-        | (TRigid p, TRigid q) when p = q ->
-          loop changed rem bad tl
-        | (TChr, TChr) | (TStr, TStr) | (TInt, TInt)
-        | (TKind, TKind) ->
-          loop changed rem bad tl
+              | (TVar (n1, r1), TVar (n2, r2)) ->
+                if n1 = n2 then tail changed rem acc xs
+                else begin
+                  (* prefer getting rid of TVars that don't have names *)
+                  let (n1, r1, n2, r2) =
+                    if fst n1 = "" then (n1, r1, n2, r2)
+                    else (n2, r2, n1, r1) in
 
-        | (TArr (f1, a1), TArr (f2, a2))
-        | (TApp (f1, a1), TApp (f2, a2)) ->
-          loop changed rem bad ((f1, f2) :: (a1, a2) :: tl)
+                  if can_mutate n1 then
+                    (r1 := Some (TVar (n2, r2)); tail changed rem acc xs)
+                  else if can_mutate n2 then
+                    (r2 := Some (TVar (n1, r1)); tail changed rem acc xs)
+                  else
+                    tail changed (CnstEq (fixed_tvars, p, q) :: rem) acc xs
+                end
 
-        | (TTup xs, TTup ys)
-        | (TCons (TCtorArr, xs), TCons (TCtorArr, ys)) ->
-          collect_new tl (xs, ys)
+              | (TVar (n, r) as p, q) | (q, (TVar (n, r) as p)) ->
+                if can_mutate n then
+                  if T.contains_tvar n q then Error [Cyclic (p, q)]
+                  else (r := Some q; tail true rem acc xs)
+                else tail changed (CnstEq (fixed_tvars, p, q) :: rem) acc xs
 
-        | (TCons (TCtorVar k1, xs), TCons (TCtorVar k2, ys)) when k1 == k2 ->
-          collect_new tl (xs, ys)
+              | _ -> tail changed rem ((p, q) :: acc) xs in
+        tail changed rem [] xs in
+  loop false [] [p, q]
 
-        | (TCons (k, x :: xs), TApp (f, a))
-        | (TApp (f, a), TCons (k, x :: xs)) ->
-          let (init, last) = init_last x xs in
-          loop changed rem bad ((TCons (k, init), f) :: (last, a) :: tl)
+let is_impl trait_entry t =
+  let (set, x, deps) = trait_entry in
+  let foldf n (m, id) =
+    let id = Z.pred id in
+    (V.Map.add n (T.TVar (("", id), ref None)) m, id) in
+  let (rigid, _) = V.Set.fold foldf set (V.Map.empty, Z.zero) in
 
-        | (TArr (p, q), TApp (f, a))
-        | (TApp (f, a), TArr (p, q)) ->
-          loop changed rem bad ((TCons (TCtorArr, [p]), f) :: (q, a) :: tl)
+  let rec loop pairs =
+    match T.decompose_pairs pairs with
+      | Error _ -> None
+      | Ok [] ->
+        (* we return the original x, not the substituted one *)
+        Some (x, List.map (fun (t, q) -> (t, V.Map.find q rigid)) deps)
+      | Ok xs ->
+        let rec tail tl = function
+          | [] -> loop tl
+          | (p, q) :: xs ->
+            let p = T.unwrap p in
+            let q = T.unwrap q in
+            match (p, q) with
+              | (TQuant _, _) | (_, TQuant _) ->
+                failwith "UNKNOWN QUANTIFIER DURING UNIFY STEP"
+              | (TPred _, _) | (_, TPred _) ->
+                failwith "UNKNOWN PREDICATE DURING UNIFY STEP"
 
-        | (TVar (n1, r1), TVar (n2, r2)) ->
-          if n1 = n2 then loop changed rem bad tl
-          else begin
-            (* prefer getting rid of tvars that don't have names *)
-            let (n1, r1, n2, r2) =
-              if fst n1 = "" then (n1, r1, n2, r2)
-              else (n2, r2, n1, r1) in
+              (* in the following cases, we only allow the fresh weak types
+               * generated here (all have negative id's) to be removed.
+               *
+               * this avoids the instances constraining the type (which is
+               * the opposite of what we want) *)
 
-            if can_mutate n1 then
-              (r1 := Some (TVar (n2, r2)); loop changed rem bad tl)
-            else if can_mutate n2 then
-              (r2 := Some (TVar (n1, r1)); loop changed rem bad tl)
-            else loop changed (CnstEq (fixed_tvars, p, q) :: rem) bad tl
-          end
+              | (TVar (n1, r1), TVar (n2, r2)) ->
+                if n1 = n2 then tail tl xs
+                else begin
+                  if Z.sign (snd n1) < 0 then
+                    (r1 := Some (TVar (n2, r2)); tail tl xs)
+                  else if Z.sign (snd n2) < 0 then
+                    (r2 := Some (TVar (n1, r1)); tail tl xs)
+                  else None (* not a candidate *)
+                end
 
-        | (TVar (n, r) as p, q) | (q, (TVar (n, r) as p)) ->
-          if can_mutate n then
-            if T.contains_tvar n q then
-              loop changed rem (Cyclic (p, q) :: bad) tl
-            else (r := Some q; loop true rem bad tl)
-          else loop changed (CnstEq (fixed_tvars, p, q) :: rem) bad tl
+              | (TVar (n, r), q) | (q, TVar (n, r)) ->
+                if Z.sign (snd n) < 0 then
+                  (r := Some q; tail tl xs)
+                else None (* not a candidate *)
 
-        | _ -> loop changed rem (Mismatch (p, q) :: bad) tl in
-  loop false [] [] [p, q]
+              | _ -> tail ((p, q) :: tl) xs in
+        tail [] xs in
+  loop [T.subst ~rigid x, t]
 
 let solve (cnst : cnst list) =
-  let rec search_ctx p = function
-    | [] -> None
-    | ctx :: xs ->
-      match List.find_opt (fun (_, impl) -> T.pred_equiv p impl) ctx with
-        | None -> search_ctx p xs
-        | Some (e, _) -> Some e in
-
   let rec visit ctx = function
     | CnstSeq xs ->
       let rec loop changed acc = function
@@ -139,45 +153,53 @@ let solve (cnst : cnst list) =
         | _ -> Ok (f, CnstImply (new_ctx, rem))
     end
 
-    | CnstPred (r, p) -> begin
-      match p with
-        | PredTraitEq t ->
-          match T.unwrap t with
-            | TInt | TChr | TStr as t ->
-              r := C.EVar (sprintf "@$Impl[Eq %s]" (T.to_string t), Z.zero);
-              Ok (false, CnstSeq [])
+    | CnstPred (r, PredTrait (trait, t)) -> begin
+      let t = T.unwrap t in
+      let Trait info = trait in
+      match t with
+        | TVar _ -> Ok (false, CnstPred (r, PredTrait (trait, t)))
+        | _ ->
+          let rec search acc = function
+            | [] -> begin
+              match acc with
+                | [x, deps] ->
+                  let rec emit_deps deps xs = function
+                    | [] ->
+                      let name = sprintf "@$Impl[%s %s]" info.name (T.to_string x) in
+                      let e = match deps with
+                        | [] -> C.EVar (name, Z.zero)
+                        | [x] -> C.EApp (C.EVar (name, Z.zero), x)
+                        | _ ->
+                          C.EApp (C.EVar (name, Z.zero), C.ETup (List.rev deps)) in
+                      r := e;
+                      visit ctx (CnstSeq xs)
 
-            | TCons (TCtorVar k, []) as t when k == T.varBool ->
-              r := C.EVar (sprintf "@$Impl[Eq %s]" (T.to_string t), Z.zero);
-              Ok (false, CnstSeq [])
+                    | (trait, q) :: ts ->
+                      let (tc, dep) = C.mk_empty_hole () in
+                      let new_cnst = CnstPred (dep, PredTrait (trait, q)) in
+                      emit_deps (tc :: deps) (new_cnst :: xs) ts in
+                  emit_deps [] [] deps
 
-            | TCons (TCtorVar k, [elt]) when k == T.varList || k == T.varRef ->
-              let (tc, dep) = C.mk_empty_hole () in
-              r := C.EApp (C.EVar ("@$Impl[Eq List a]", Z.zero), tc);
-              visit ctx (CnstPred (dep, PredTraitEq elt))
-
-            | TTup [] ->
-              r := C.EVar (sprintf "@$Impl[Eq ()]", Z.zero);
-              Ok (false, CnstSeq [])
-
-            | TTup ys ->
-              let buf = Buffer.create 32 in
-              Buffer.add_string buf "@$Impl[Eq (";
-              let rec emit_deps deps xs = function
                 | [] ->
-                  Buffer.add_string buf ")]";
-                  r := C.EApp (C.EVar (Buffer.contents buf, Z.zero), C.ETup (List.rev deps));
-                  visit ctx (CnstSeq xs)
-                | t :: ts ->
-                  let (tc, dep) = C.mk_empty_hole () in
-                  Buffer.add_char buf ',';
-                  emit_deps (tc :: deps) (CnstPred (dep, PredTraitEq t) :: xs) ts in
-              emit_deps [] [] ys
-
-            | t ->
-              match search_ctx p ctx with
-                | Some e -> r := e; Ok (false, CnstSeq [])
-                | None -> Ok (false, CnstPred (r, PredTraitEq t))
+                  (* search the context for evidence *)
+                  let rec search_ctx = function
+                    | [] -> Ok (false, CnstPred (r, PredTrait (trait, t)))
+                    | x :: xs ->
+                      let predf (_, T.PredTrait (q, evidence)) =
+                        q == trait && T.decompose evidence t = Ok [] in
+                      match List.find_opt predf x with
+                        | None -> search_ctx xs
+                        | Some (e, _) -> r := e; Ok (false, CnstSeq []) in
+                  search_ctx ctx
+                | _ ->
+                  (* ambiguous match: report it later *)
+                  Ok (false, CnstPred (r, PredTrait (trait, t)))
+            end
+            | trait_entry :: xs ->
+              match is_impl trait_entry t with
+                | None -> search acc xs
+                | Some p -> search (p :: acc) xs in
+          search [] info.allowed
     end in
 
   let rec fixpoint cnst =

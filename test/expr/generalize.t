@@ -51,7 +51,7 @@ enough
   $ GenExpr << "EOF"
   > {let p2 : a -> a -> c; p2 x y = (x, y) in p2}
   > EOF
-  Error: Cannot unify unrelated types c$10 and (a$9, a$9)
+  Error: Cannot unify unrelated types c$10 and ($14, $15)
 
 And the identifier takes the type you provide (even if the inferred type is
 more general)

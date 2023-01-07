@@ -14,7 +14,7 @@ This does not type check because both a's refer to the same type variable
   $ GenExpr << "EOF"
   > {match (1, "") with (x : a, y : a) -> (y, x)}
   > EOF
-  Error: Cannot unify unrelated types String and Int
+  Error: Cannot unify unrelated types Int and String
 
 Basically patterns can bind fresh type variables
   $ GenExpr << "EOF"

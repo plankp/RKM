@@ -165,7 +165,7 @@ let visit_contexted_type (ctx : context) (cnsts : Ast.ast_cnst list) (annot : As
     | ("Eq", [t]) :: xs ->
       let* (t, kind, f, m, ctx) = visit_ast_type false m ctx t in
       let rules = S.CnstEq (V.Set.empty, T.TKind, kind) :: f :: rules in
-      loop (T.PredTraitEq t :: acc) rules m ctx xs
+      loop (T.PredTrait (T.traitEq, t) :: acc) rules m ctx xs
     | (n, _) :: _ -> Error ["unknown trait " ^ n] in
   loop [] [] (Some StrMap.empty) ctx cnsts
 
@@ -205,11 +205,11 @@ let lookup_dctor n ty rules ctx =
         | _ ->
           match StrMap.find_opt n ctx.dctors with
             | None -> (None, ty, ctx)
-            | Some v ->
+            | Some (T.Variant info as v) ->
               let foldf (acc, ctx) _ =
                 let (fresh, ctx) = mk_tvar ctx "" in
                 (fresh :: acc, ctx) in
-              let (args, ctx) = List.fold_left foldf ([], ctx) v.quants in
+              let (args, ctx) = List.fold_left foldf ([], ctx) info.quants in
               let args = List.rev args in
               (T.inst_case v n args, T.TCons (TCtorVar v, args), ctx) in
       match ctor with
@@ -773,7 +773,7 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
             | Ast.DefData (n, _, _) :: xs ->
               let (t, k) = StrMap.find n ctx.tctors in
               match t with
-                | TCons (TCtorVar variant, []) -> begin
+                | TCons (TCtorVar (Variant v), []) -> begin
                   try
                     let mapf _ (t : t list) =
                       let mapf t =
@@ -781,7 +781,7 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
                         if not @@ contains_quant t then t
                         else failwith "unsaturated type aliases are not allowed" in
                       Some (List.map mapf t) in
-                    Hashtbl.filter_map_inplace mapf variant.cases;
+                    Hashtbl.filter_map_inplace mapf v.cases;
 
                     let qs = collect_free_tvars k in
                     let (qs, m, ctx) = gen ctx qs in
@@ -807,17 +807,17 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
 
     | Ast.DefData (n, _, cases) :: xs ->
       match StrMap.find n new_decls with
-        | (TCons (TCtorVar variant, []), knot, _, tvenv) ->
+        | (TCons (TCtorVar (Variant info as v), []), knot, _, tvenv) ->
           let rec loop rules new_cases ctx = function
             | [] -> collect_cases rules new_decls new_cases new_aliases ctx xs
             | (k, args) :: xs ->
               let rec inner rules acc ctx = function
                 | [] -> begin
-                  if Hashtbl.mem variant.cases k then
+                  if Hashtbl.mem info.cases k then
                     Error ["duplicate data constructor " ^ k]
                   else begin
-                    Hashtbl.add variant.cases k (List.rev acc);
-                    loop rules (StrMap.add k variant new_cases) ctx xs
+                    Hashtbl.add info.cases k (List.rev acc);
+                    loop rules (StrMap.add k v new_cases) ctx xs
                   end
                 end
                 | x :: xs ->
@@ -837,11 +837,11 @@ let visit_top_alias (ctx : context) (aliases : Ast.ast_alias list) =
 
     | Ast.DefData (n, args, _) :: xs ->
       let* (tvenv, args, ctx) = collect_decl_tvs ctx args in
-      let value = TCons (TCtorVar {
+      let value = TCons (TCtorVar (Variant {
         name = n;
         quants = List.map fst args;
         cases = Hashtbl.create 16;
-      }, []) in
+      }), []) in
       tail n args value TKind tvenv new_decls ctx xs
 
   and tail n args value kind tvenv new_decls ctx xs =
