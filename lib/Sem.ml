@@ -632,7 +632,7 @@ and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
     let (ety, ctx) = mk_tvar ctx "" in
     let* (op, f, ctx) =
       let name = match op with
-        | "-" -> "not" | "!" -> "negate"
+        | "-" -> "negate" | "!" -> "not"
         | op -> "(" ^ op ^ ")" in
       let ty = T.TArr (ety, ty) in
       lookup_var name ty ctx (fun () -> "unknown unary operator " ^ op) in
