@@ -1,3 +1,4 @@
+open Printf
 module StrMap = Map.Make (String)
 module V = VarInfo
 module T = Type
@@ -11,6 +12,7 @@ type context = {
   id : Z.t;
   tctors : tkmap;
   dctors : T.variant StrMap.t;
+  traits : (T.trait * T.t) StrMap.t;
   tvenv : tkmap list;
   idenv : vtmap list;
 
@@ -47,7 +49,29 @@ let core_context : context = {
     "(::)", T.varList;
   ];
 
-  idenv = [];
+  traits = map_of_list [
+    "Eq", (T.traitEq, T.TKind);
+  ];
+
+  idenv = [
+    (* just for illustration purposes *)
+    map_of_list [
+      "(!=)", (
+        C.ELam (("a", Z.zero), C.ECase (C.EVar ("a", Z.zero), [
+          C.PatUnpack ["p", Z.zero; "q", Z.zero], C.EVar ("p", Z.zero)])),
+        T.TQuant (("a", Z.zero),
+          T.TPred (T.PredTrait (T.traitEq, T.TRigid ("a", Z.zero)),
+            T.TArr (T.TRigid ("a", Z.zero),
+              T.TArr (T.TRigid ("a", Z.zero), T.tyBool)))));
+      "(==)", (
+        C.ELam (("a", Z.zero), C.ECase (C.EVar ("a", Z.zero), [
+          C.PatUnpack ["p", Z.zero; "q", Z.zero], C.EVar ("q", Z.zero)])),
+        T.TQuant (("a", Z.zero),
+          T.TPred (T.PredTrait (T.traitEq, T.TRigid ("a", Z.zero)),
+            T.TArr (T.TRigid ("a", Z.zero),
+              T.TArr (T.TRigid ("a", Z.zero), T.tyBool)))));
+    ];
+  ];
   tvenv = [];
 
   fixed_tvars = V.Set.empty;
@@ -157,17 +181,24 @@ let visit_ast_type (allow_ign : bool) (next : tkmap option) (ctx : context) (ast
   else Ok (ty, kind, f, next, ctx)
 
 let visit_contexted_type (ctx : context) (cnsts : Ast.ast_cnst list) (annot : Ast.ast_typ) =
-  let rec loop acc rules m ctx = function
+  (* type variables in constraints must appear in the annotation *)
+  let* (bty, kind, f, m, ctx) = visit_ast_type true (Some StrMap.empty) ctx annot in
+  let m = Option.get m in
+  let ctx = { ctx with tvenv = m :: ctx.tvenv } in
+  let rec loop acc rules ctx = function
     | [] ->
-      let* (bty, kind, f, m, ctx) = visit_ast_type true m ctx annot in
-      let bty = List.fold_left (fun t p -> T.TPred (p, t)) bty acc in
-      Ok (bty, kind, S.merge_cnst (f :: rules), Option.get m, ctx)
-    | ("Eq", [t]) :: xs ->
-      let* (t, kind, f, m, ctx) = visit_ast_type false m ctx t in
-      let rules = S.CnstEq (V.Set.empty, T.TKind, kind) :: f :: rules in
-      loop (T.PredTrait (T.traitEq, t) :: acc) rules m ctx xs
-    | (n, _) :: _ -> Error ["unknown trait " ^ n] in
-  loop [] [] (Some StrMap.empty) ctx cnsts
+      let ctx = { ctx with tvenv = List.tl ctx.tvenv } in
+      Ok (acc, bty, kind, S.merge_cnst (f :: rules), m, ctx)
+    | (n, [t]) :: xs -> begin
+      match StrMap.find_opt n ctx.traits with
+        | None -> Error ["unknown trait " ^ n]
+        | Some (trait, argkind) ->
+          let* (t, kind, f, _, ctx) = visit_ast_type false None ctx t in
+          let rules = S.CnstEq (V.Set.empty, argkind, kind) :: f :: rules in
+          loop (T.PredTrait (trait, t) :: acc) rules ctx xs
+    end
+    | _ -> Error ["multi parameter traits are not supported"] in
+  loop [] [] ctx cnsts
 
 let collect_decl_tvs (ctx : context) (tvargs : string list) =
   let rec loop map acc errors ctx = function
@@ -419,9 +450,9 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
         let rec loop new_ids acc rules ctx = function
           | [] -> Ok (new_ids, acc, rules, ctx)
           | (n, bty, annot_info, e) :: xs ->
-            if not recur || Core.is_valid_rec ds e then begin
+            if not recur || C.is_valid_rec ds e then begin
               let monos =
-                if Core.is_syntactic_value e then monos
+                if C.is_syntactic_value e then monos
                 else T.dangerous_vars ~acc:monos bty in
               match annot_info with
                 | Some (preds, ta) ->
@@ -494,7 +525,8 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
       let new_ids = StrMap.add n (C.EVar (n, Z.zero), bty) new_ids in
       fill_scope new_ids rules ctx xs
     | (n, Some (cnsts, annot), _) :: xs ->
-      let* (bty, kind, f, _, ctx) = visit_contexted_type ctx cnsts annot in
+      let* (preds, bty, kind, f, _, ctx) = visit_contexted_type ctx cnsts annot in
+      let bty = List.fold_left (fun t p -> T.TPred (p, t)) bty preds in
       let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
       let qs = T.collect_free_tvars bty in
       let filterf (n, _) = not @@ V.Set.mem n monos in
@@ -722,6 +754,105 @@ let visit_top_defs (ctx : context) (vb : Ast.ast_vdef list) =
       let mapf (b, i) = (b, C.normalize i) in
       Ok (List.map mapf acc, { ctx with idenv = new_ids :: ctx.idenv })
 
+let visit_top_impl (ctx : context) ((cnsts, n, ty, vb): Ast.ast_impl) =
+  if ctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
+  if ctx.implications <> [] then failwith "IMPLICATIONS NOT EMPTY?";
+
+  match StrMap.find_opt n ctx.traits with
+    | None -> Error ["unknown trait " ^ n]
+    | Some (T.Trait info, argkind) ->
+      let* (preds, bty, kind, f, _, ctx) = visit_contexted_type ctx cnsts ty in
+      let rules = [S.CnstEq (V.Set.empty, argkind, kind); f] in
+
+      let qs = T.collect_free_tvars bty in
+      let (qs, m, ctx) = gen ctx qs in
+      let preds = List.map (T.subst_pred ~weak:m) preds in
+      let bty = T.subst ~weak:m bty in
+      let qt = List.fold_left (fun t p -> T.TPred (p, t)) bty preds in
+      let qt = List.fold_left (fun t q -> T.TQuant (q, t)) qt qs in
+
+      let rec compute_outer_iargs impls iargs ctx = function
+        | [] -> (impls, iargs, ctx)
+        | p :: xs ->
+          let (n, ctx) = mk_name ctx "@" in
+          let impl = (C.EVar n, p) in
+          compute_outer_iargs (impl :: impls) (n :: iargs) ctx xs in
+
+      let (impls, outer_iargs, ctx) = compute_outer_iargs [] [] ctx preds in
+
+      let name = sprintf "@$%s[%s]" info.name (T.to_string bty) in
+      let* vb = organize_vdefs vb in
+      let monos = free_ctx ctx in
+      let rigid = V.Map.singleton info.quant bty in
+
+      let rec eval_init entries remaining rules ctx = function
+        | [] -> begin
+          match StrMap.choose_opt remaining with
+            | Some (k, _) -> Error ["missing implementation for field " ^ k]
+            | None ->
+              match S.solve rules with
+                | Error e -> Error (List.map S.explain e)
+                | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+                | Ok [] ->
+                  let entries = entries
+                    |> StrMap.to_seq
+                    |> Seq.map snd
+                    |> Seq.map C.normalize
+                    |> List.of_seq in
+                  let e = match entries with
+                    | [x] -> x
+                    | xs -> C.ETup xs in
+                  let (e, ctx) = match outer_iargs with
+                    | [] -> (e, ctx)
+                    | [x] -> (C.ELam (x, e), ctx)
+                    | xs ->
+                      let (n, ctx) = mk_name ctx "" in
+                      (C.ELam (n, C.ECase (C.EVar n, [C.PatUnpack xs, e])), ctx) in
+                  Ok ([(name, Z.zero), e], ctx)
+        end
+
+        | (n, _, []) :: _ -> Error ["missing implementation for " ^ n]
+        | (_, Some _, _) :: _ -> Error ["explicit type annotation not allowed here"]
+        | (n, None, defs) :: xs ->
+          match StrMap.find_opt n remaining with
+            | None -> Error ["trait " ^ info.name ^ " does not have field " ^ n]
+            | Some annot ->
+              let rec unpeel impls iargs ctx = function
+                | T.TPred (p, t) ->
+                  let (n, ctx) = mk_name ctx "@" in
+                  let impl = (C.EVar n, p) in
+                  unpeel (impl :: impls) (n :: iargs) ctx t
+                | ta ->
+                  let (bty, ctx) = mk_tvar ctx "" in
+                  let ctx = { ctx with implications = impls } in
+                  let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
+                  let ctx = { ctx with implications = [] } in
+                  let (e, ctx) = match iargs with
+                    | [] -> (e, ctx)
+                    | [x] -> (C.ELam (x, e), ctx)
+                    | xs ->
+                      let (n, ctx) = mk_name ctx "" in
+                      (C.ELam (n, C.ECase (C.EVar n, [C.PatUnpack (List.rev xs), e])), ctx) in
+
+                  match S.solve rules with
+                    | Error e -> Error (List.map S.explain e)
+                    | Ok rules ->
+                      let monos =
+                        if C.is_syntactic_value e then monos
+                        else T.dangerous_vars ~acc:monos bty in
+                      let f = S.CnstImply (impls, S.CnstEq (monos, ta, bty)) in
+                      eval_init (StrMap.add n e entries) (StrMap.remove n remaining) (f :: rules) ctx xs in
+              unpeel impls [] ctx (T.subst ~rigid annot) in
+
+      (* assume this is correctly implemented *)
+      info.allowed <- (name, qt) :: info.allowed;
+      match eval_init StrMap.empty info.fields rules ctx vb with
+        | Ok t -> Ok t
+        | Error e ->
+          (* "undo" the otherwise to avoid using broken implementations *)
+          info.allowed <- List.tl info.allowed;
+          Error e
+
 let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
   let rec loop rules map ctx = function
     | [] -> begin
@@ -867,6 +998,9 @@ let visit_toplevel (ctx : context) (ast : Ast.ast_toplevel) =
       Ok (AddTypes m, ctx)
     | Ast.TopDef defs ->
       let* (m, ctx) = visit_top_defs ctx defs in
+      Ok (AddGlobl m, ctx)
+    | Ast.TopImpl defs ->
+      let* (m, ctx) = visit_top_impl ctx defs in
       Ok (AddGlobl m, ctx)
     | Ast.TopExtern defs ->
       let* (m, ctx) = visit_top_externs ctx defs in

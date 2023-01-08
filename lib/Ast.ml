@@ -5,6 +5,7 @@ type ast_toplevel =
   | TopDef of ast_vdef list
   | TopExtern of ast_extern list
   | TopAlias of ast_alias list
+  | TopImpl of ast_impl
 
 and ast_expr =
   | Var of string
@@ -54,6 +55,9 @@ and ast_alias =
   | DefAlias of string * string list * ast_typ
   | DefData of string * string list * (string * ast_typ list) list
 
+and ast_impl =
+  ast_cnst list * string * ast_typ * ast_vdef list
+
 and ast_lit =
   | LitInt of Z.t
   | LitStr of string
@@ -81,6 +85,16 @@ let rec output_top ppf = function
   | TopAlias vb ->
     output_string ppf "type {";
     List.iter (fprintf ppf " %a;" output_alias) vb;
+    output_string ppf " }"
+  | TopImpl ([], n, ty, vb) ->
+    fprintf ppf "impl %s %a with {" n output_typ ty;
+    List.iter (fprintf ppf " %a;" output_vdef) vb;
+    output_string ppf " }"
+  | TopImpl (x :: xs, n, ty, vb) ->
+    fprintf ppf "impl %a" output_cnst x;
+    List.iter (fprintf ppf ", %a" output_cnst) xs;
+    fprintf ppf " => %s %a with {" n output_typ ty;
+    List.iter (fprintf ppf " %a;" output_vdef) vb;
     output_string ppf " }"
 
 and output_expr ppf = function

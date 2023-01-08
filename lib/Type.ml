@@ -1,5 +1,6 @@
 open Printf
 module V = VarInfo
+module StrMap = Map.Make (String)
 
 type t =
 (* a weak unification variable *)
@@ -51,16 +52,20 @@ and trait = Trait of {
   quant : V.t;
 
   (*
-   * e.g. impl Eq a, Eq b, Eq c => Eq (a, b, c) with...
-   * set  = { a, b, c }
-   * t    = TTup (TRigid a, TRigid b, TRigid c)
-   * deps = [Eq a; Eq b; Eq c]
+   * implicitly quantified, refers to quant as rigid type. e.g.,
+   * trait Foo a with { foo : K b => a -> b -> c -> Bool }
+   * fields["foo"] = K b => a -> b -> c -> Bool
    *)
-  mutable allowed : (V.Set.t * t * trait_dep) list;
-}
+  fields : t StrMap.t;
 
-and trait_dep =
-  (trait * V.t) list
+  (*
+   * stores the name of the implementing data structure and the implementing
+   * type. e.g., for a three-element tuple
+   * impl Eq a, Eq b, Eq c => Eq (a, b, c) with ...
+   * stores (<whatever>, \a b c. Eq a => Eq b => Eq c => (a, b, c))
+   *)
+  mutable allowed : (string * t) list;
+}
 
 (* data Bool = True | False *)
 let varBool : variant = Variant {
@@ -103,9 +108,13 @@ let () =
 let traitEq : trait = Trait {
   name = "Eq";
   quant = ("a", Z.zero);
+  fields = StrMap.empty
+    |> StrMap.add "(==)"
+      (TArr (TRigid ("a", Z.zero), TArr (TRigid ("a", Z.zero), tyBool)))
+    |> StrMap.add "(!=)"
+      (TArr (TRigid ("a", Z.zero), TArr (TRigid ("a", Z.zero), tyBool)));
   allowed = [];
 }
-
 
 let rec unwrap : t -> t = function
   | TVar (_, ({ contents = Some t } as r)) ->
@@ -269,9 +278,12 @@ let rec subst ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
   | TTup xs -> TTup (List.map (subst ~rigid ~weak) xs)
   | TCons (k, xs) -> TCons (k, List.map (subst ~rigid ~weak) xs)
   | TApp (p, q) -> TApp (subst ~rigid ~weak p, subst ~rigid ~weak q)
-  | TPred (PredTrait (trait, x), q) ->
-    TPred (PredTrait (trait, subst ~rigid ~weak x), subst ~weak ~rigid q)
+  | TPred (p, q) ->
+    TPred (subst_pred ~rigid ~weak p, subst ~weak ~rigid q)
   | TQuant (n, t) -> TQuant (n, subst ~weak ~rigid:(V.Map.remove n rigid) t)
+
+and subst_pred ?(rigid = V.Map.empty) ?(weak = V.Map.empty) = function
+  | PredTrait (trait, x) -> PredTrait (trait, subst ~rigid ~weak x)
 
 let rec eval (map : t V.Map.t) (env : V.Set.t) : t -> t = function
   | TRigid n as t -> V.Map.find_opt n map |> Option.value ~default:t

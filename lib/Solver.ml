@@ -70,19 +70,24 @@ let unify ?(fixed_tvars = V.Set.empty) (p : T.t) (q : T.t) =
         tail changed rem [] xs in
   loop false [] [p, q]
 
-let is_impl trait_entry t =
-  let (set, x, deps) = trait_entry in
-  let foldf n (m, id) =
-    let id = Z.pred id in
-    (V.Map.add n (T.TVar (("", id), ref None)) m, id) in
-  let (rigid, _) = V.Set.fold foldf set (V.Map.empty, Z.zero) in
+let is_impl ((name, pattern)) t =
+  let rec partition preds m id = function
+    | T.TQuant (n, t) ->
+      let id = Z.pred id in
+      partition preds (V.Map.add n (T.TVar (("", id), ref None)) m) id t
+    | T.TPred (p, t) -> partition (p :: preds) m id t
+    | t -> (m, List.rev preds, t) in
 
+  (* begin by "instantiating" the pattern *)
+  let (rigid, deps, pat) = partition [] V.Map.empty Z.zero pattern in
+
+  (* then check if it is the correct implementation by unification *)
   let rec loop pairs =
     match T.decompose_pairs pairs with
       | Error _ -> None
       | Ok [] ->
-        (* we return the original x, not the substituted one *)
-        Some (x, List.map (fun (t, q) -> (t, V.Map.find q rigid)) deps)
+        (* if it matches, then yield the extra constraints (deps) *)
+        Some (name, List.map (T.subst_pred ~rigid) deps)
       | Ok xs ->
         let rec tail tl = function
           | [] -> loop tl
@@ -118,7 +123,7 @@ let is_impl trait_entry t =
 
               | _ -> tail ((p, q) :: tl) xs in
         tail [] xs in
-  loop [T.subst ~rigid x, t]
+  loop [T.subst ~rigid pat, t]
 
 let solve (cnst : cnst list) =
   let rec visit ctx = function
@@ -162,10 +167,9 @@ let solve (cnst : cnst list) =
           let rec search acc = function
             | [] -> begin
               match acc with
-                | [x, deps] ->
+                | [name, deps] ->
                   let rec emit_deps deps xs = function
                     | [] ->
-                      let name = sprintf "@$Impl[%s %s]" info.name (T.to_string x) in
                       let e = match deps with
                         | [] -> C.EVar (name, Z.zero)
                         | [x] -> C.EApp (C.EVar (name, Z.zero), x)
@@ -174,9 +178,9 @@ let solve (cnst : cnst list) =
                       r := e;
                       visit ctx (CnstSeq xs)
 
-                    | (trait, q) :: ts ->
+                    | pred :: ts ->
                       let (tc, dep) = C.mk_empty_hole () in
-                      let new_cnst = CnstPred (dep, PredTrait (trait, q)) in
+                      let new_cnst = CnstPred (dep, pred) in
                       emit_deps (tc :: deps) (new_cnst :: xs) ts in
                   emit_deps [] [] deps
 

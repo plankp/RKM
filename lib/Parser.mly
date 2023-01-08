@@ -66,6 +66,7 @@ toplevel:
   | DEF; vb = block_vbinds { TopDef vb }
   | EXTERN; vb = block_externs { TopExtern vb }
   | TYPE; vb = block_aliases { TopAlias vb }
+  | IMPL; e = impl { TopImpl e }
   | e = expr { TopExpr e }
 
 block_externs:
@@ -89,6 +90,14 @@ alias:
 ctor:
   | BAR; n = IDCTOR; args = annot3* { (n, args) }
   | BAR; n = dop_name; args = annot3* { (n, args) }
+
+impl:
+  | n = IDCTOR; t = annot3; WITH; vb = block_vbinds { ([], n, t, vb) }
+  | k = impl_cnsts; n = IDCTOR; t = annot3; WITH; vb = block_vbinds { (k, n, t, vb) }
+
+impl_cnsts:
+  | k = IDCTOR; args = annot3*; COMMA; xs = impl_cnsts { (k, args) :: xs }
+  | k = IDCTOR; args = annot3*; IMPLIES { [k, args] }
 
 repl_expr:
   | LCURLY; e = expr; RCURLY; EOF { e }

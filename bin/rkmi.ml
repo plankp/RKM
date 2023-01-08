@@ -33,6 +33,7 @@ let rec lookup_extf : string -> Eval.value option = function
   | "int_and#" -> Some (gen_extf_ii_i Z.logand)
   | "int_xor#" -> Some (gen_extf_ii_i Z.logxor)
   | "int_or#" -> Some (gen_extf_ii_i Z.logor)
+  | "int_eq#" -> Some (gen_extf_ii_b Z.equal)
   | _ -> None
 
 and gen_extf_ii_i f =
@@ -40,6 +41,15 @@ and gen_extf_ii_i f =
   VExtf (fun p -> Ok (VExtf (fun q ->
     match (p, q) with
       | (VLit (LitInt p), VLit (LitInt q)) -> Ok (VLit (LitInt (f p q)))
+      | _ -> Error "Type violation")))
+
+and gen_extf_ii_b f =
+  let open Eval in
+  VExtf (fun p -> Ok (VExtf (fun q ->
+    match (p, q) with
+      | (VLit (LitInt p), VLit (LitInt q)) ->
+        let k = if f p q then "True" else "False" in
+        Ok (VCons (k, false, []))
       | _ -> Error "Type violation")))
 
 let proc_toplevel verbose venv = function
