@@ -12,7 +12,7 @@ Missing top level element
 
 prog: LCURLY CHAR RCURLY WITH
 ##
-## Ends in an error in state: 327.
+## Ends in an error in state: 343.
 ##
 ## prog -> LCURLY toplevels RCURLY . EOF [ # ]
 ##
@@ -74,7 +74,7 @@ Missing type expression
 
 prog: LCURLY EXTERN LCURLY WITH
 ##
-## Ends in an error in state: 312.
+## Ends in an error in state: 328.
 ##
 ## block_externs -> LCURLY . externs RCURLY [ SEMI RCURLY ]
 ##
@@ -86,7 +86,7 @@ Missing external definitions
 
 prog: LCURLY EXTERN LCURLY IDVAR WITH
 ##
-## Ends in an error in state: 313.
+## Ends in an error in state: 329.
 ##
 ## externs -> IDVAR . COLON annot SET STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR . COLON annot SET STR option(SEMI) [ RCURLY ]
@@ -99,7 +99,7 @@ Incomplete external definition
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON WITH
 ##
-## Ends in an error in state: 314.
+## Ends in an error in state: 330.
 ##
 ## externs -> IDVAR COLON . annot SET STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON . annot SET STR option(SEMI) [ RCURLY ]
@@ -112,7 +112,7 @@ Missing explicit type annotation
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDVAR WITH
 ##
-## Ends in an error in state: 315.
+## Ends in an error in state: 331.
 ##
 ## externs -> IDVAR COLON annot . SET STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON annot . SET STR option(SEMI) [ RCURLY ]
@@ -131,7 +131,7 @@ Missing '='
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDVAR SET WITH
 ##
-## Ends in an error in state: 316.
+## Ends in an error in state: 332.
 ##
 ## externs -> IDVAR COLON annot SET . STR SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON annot SET . STR option(SEMI) [ RCURLY ]
@@ -370,7 +370,7 @@ Missing initializer for operator definition
 
 repl_expr: LCURLY WITH
 ##
-## Ends in an error in state: 342.
+## Ends in an error in state: 358.
 ##
 ## repl_expr -> LCURLY . expr RCURLY EOF [ # ]
 ##
@@ -382,7 +382,7 @@ Missing expression
 
 repl_annot: LCURLY WITH
 ##
-## Ends in an error in state: 336.
+## Ends in an error in state: 352.
 ##
 ## repl_annot -> LCURLY . annot RCURLY EOF [ # ]
 ##
@@ -1438,7 +1438,7 @@ Incomplete program
 
 prog: LCURLY IDVAR SEMI EOF
 ##
-## Ends in an error in state: 330.
+## Ends in an error in state: 346.
 ##
 ## option(SEMI) -> SEMI . [ RCURLY ]
 ## toplevels -> toplevel SEMI . toplevels [ RCURLY ]
@@ -1627,7 +1627,7 @@ Incomplete lambda expression
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR WITH
 ##
-## Ends in an error in state: 317.
+## Ends in an error in state: 333.
 ##
 ## externs -> IDVAR COLON annot SET STR . SEMI externs [ RCURLY ]
 ## externs -> IDVAR COLON annot SET STR . option(SEMI) [ RCURLY ]
@@ -1640,7 +1640,7 @@ Incomplete external definition
 
 prog: LCURLY EXTERN LCURLY IDVAR COLON IDCTOR SET STR SEMI WITH
 ##
-## Ends in an error in state: 318.
+## Ends in an error in state: 334.
 ##
 ## externs -> IDVAR COLON annot SET STR SEMI . externs [ RCURLY ]
 ## option(SEMI) -> SEMI . [ RCURLY ]
@@ -1653,7 +1653,7 @@ Incomplete external definition
 
 prog: LCURLY CHAR UNDERSCORE
 ##
-## Ends in an error in state: 329.
+## Ends in an error in state: 345.
 ##
 ## toplevels -> toplevel . SEMI toplevels [ RCURLY ]
 ## toplevels -> toplevel . option(SEMI) [ RCURLY ]
@@ -1676,14 +1676,14 @@ prog: LCURLY CHAR UNDERSCORE
 ## In state 237, spurious reduction of production expr2_or -> expr2_and
 ## In state 229, spurious reduction of production expr2 -> expr2_or
 ## In state 243, spurious reduction of production expr -> expr2
-## In state 332, spurious reduction of production toplevel -> expr
+## In state 348, spurious reduction of production toplevel -> expr
 ##
 
 Unexpected trailing token after a completed top level element
 
 repl_annot: WITH
 ##
-## Ends in an error in state: 335.
+## Ends in an error in state: 351.
 ##
 ## repl_annot' -> . repl_annot [ # ]
 ##
@@ -1695,7 +1695,7 @@ Missing type expression
 
 repl_annot: LCURLY IDCTOR WITH
 ##
-## Ends in an error in state: 337.
+## Ends in an error in state: 353.
 ##
 ## repl_annot -> LCURLY annot . RCURLY EOF [ # ]
 ##
@@ -1713,7 +1713,7 @@ Unexpected trailing token after a completed type expression
 
 repl_expr: WITH
 ##
-## Ends in an error in state: 341.
+## Ends in an error in state: 357.
 ##
 ## repl_expr' -> . repl_expr [ # ]
 ##
@@ -1725,7 +1725,7 @@ Missing expression
 
 repl_expr: LCURLY CHAR WITH
 ##
-## Ends in an error in state: 343.
+## Ends in an error in state: 359.
 ##
 ## repl_expr -> LCURLY expr . RCURLY EOF [ # ]
 ##
@@ -2057,3 +2057,124 @@ prog: LCURLY DEF LCURLY IDVAR COLON IDVAR AND
 ##
 
 Incomplete value definition
+
+prog: LCURLY IMPL WITH
+##
+## Ends in an error in state: 311.
+##
+## toplevel -> IMPL . impl [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## IMPL
+##
+
+Incomplete trait implementation
+
+prog: LCURLY IMPL IDCTOR WITH
+##
+## Ends in an error in state: 312.
+##
+## impl -> IDCTOR . annot3 WITH block_vbinds [ SEMI RCURLY ]
+## impl_cnsts -> IDCTOR . list(annot3) COMMA impl_cnsts [ IDCTOR ]
+## impl_cnsts -> IDCTOR . list(annot3) IMPLIES [ IDCTOR ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR
+##
+
+Incomplete trait implementation
+
+prog: LCURLY IMPL IDCTOR IDVAR IDVAR SEMI
+##
+## Ends in an error in state: 313.
+##
+## impl_cnsts -> IDCTOR list(annot3) . COMMA impl_cnsts [ IDCTOR ]
+## impl_cnsts -> IDCTOR list(annot3) . IMPLIES [ IDCTOR ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(annot3)
+##
+## WARNING: This example involves spurious reductions.
+## This implies that, although the LR(1) items shown above provide an
+## accurate view of the past (what has been recognized so far), they
+## may provide an INCOMPLETE view of the future (what was expected next).
+## In state 48, spurious reduction of production list(annot3) ->
+## In state 49, spurious reduction of production list(annot3) -> annot3 list(annot3)
+## In state 49, spurious reduction of production list(annot3) -> annot3 list(annot3)
+##
+
+Incomplete trait implementation
+
+prog: LCURLY IMPL IDCTOR COMMA WITH
+##
+## Ends in an error in state: 315.
+##
+## impl_cnsts -> IDCTOR list(annot3) COMMA . impl_cnsts [ IDCTOR ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR list(annot3) COMMA
+##
+
+Missing another type constraint
+
+prog: LCURLY IMPL IDCTOR COMMA IDCTOR WITH
+##
+## Ends in an error in state: 316.
+##
+## impl_cnsts -> IDCTOR . list(annot3) COMMA impl_cnsts [ IDCTOR ]
+## impl_cnsts -> IDCTOR . list(annot3) IMPLIES [ IDCTOR ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR
+##
+
+Incomplete trait implementation
+
+prog: LCURLY IMPL IDCTOR IDVAR TYPE
+##
+## Ends in an error in state: 318.
+##
+## impl -> IDCTOR annot3 . WITH block_vbinds [ SEMI RCURLY ]
+## list(annot3) -> annot3 . list(annot3) [ IMPLIES COMMA ]
+##
+## The known suffix of the stack is as follows:
+## IDCTOR annot3
+##
+
+Incomplete trait implementation
+
+prog: LCURLY IMPL IDCTOR IMPLIES WITH
+##
+## Ends in an error in state: 321.
+##
+## impl -> impl_cnsts . IDCTOR annot3 WITH block_vbinds [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## impl_cnsts
+##
+
+Incomplete trait implementation
+
+prog: LCURLY IMPL IDCTOR IMPLIES IDCTOR WITH
+##
+## Ends in an error in state: 322.
+##
+## impl -> impl_cnsts IDCTOR . annot3 WITH block_vbinds [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## impl_cnsts IDCTOR
+##
+
+Missing implementing type
+
+prog: LCURLY IMPL IDCTOR IMPLIES IDCTOR IDVAR UNDERSCORE
+##
+## Ends in an error in state: 323.
+##
+## impl -> impl_cnsts IDCTOR annot3 . WITH block_vbinds [ SEMI RCURLY ]
+##
+## The known suffix of the stack is as follows:
+## impl_cnsts IDCTOR annot3
+##
+
+Incomplete trait implementation
