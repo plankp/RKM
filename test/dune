@@ -15,4 +15,4 @@
 
 (cram
  (applies_to :whole_subtree)
- (deps %{bin:GenAst} %{bin:GenKind} %{bin:GenExpr}))
+ (deps %{bin:GenAst} %{bin:GenKind} %{bin:GenExpr} %{bin:rkmi}))

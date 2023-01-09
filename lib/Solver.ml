@@ -87,7 +87,7 @@ let is_impl ((name, pattern)) t =
       | Error _ -> None
       | Ok [] ->
         (* if it matches, then yield the extra constraints (deps) *)
-        Some (name, List.map (T.subst_pred ~rigid) deps)
+        Some (name, List.map (List.map (T.subst_pred ~rigid)) deps)
       | Ok xs ->
         let rec tail tl = function
           | [] -> loop tl
@@ -168,21 +168,24 @@ let solve (cnst : cnst list) =
             | [] -> begin
               match acc with
                 | [name, deps] ->
-                  let rec emit_deps deps xs = function
-                    | [] ->
-                      let e = match deps with
-                        | [] -> C.EVar (name, Z.zero)
-                        | [x] -> C.EApp (C.EVar (name, Z.zero), x)
-                        | _ ->
-                          C.EApp (C.EVar (name, Z.zero), C.ETup (List.rev deps)) in
-                      r := e;
-                      visit ctx (CnstSeq xs)
-
-                    | pred :: ts ->
+                  (* translates a depedency into an argument at runtime *)
+                  let rec emit_arg iargs cnsts = function
+                    | pred :: xs ->
                       let (tc, dep) = C.mk_empty_hole () in
                       let new_cnst = CnstPred (dep, pred) in
-                      emit_deps (tc :: deps) (new_cnst :: xs) ts in
-                  emit_deps [] [] deps
+                      emit_arg (tc :: iargs) (new_cnst :: cnsts) xs
+                    | [] ->
+                      match iargs with
+                        | [x] -> (x, cnsts)
+                        | _ -> (C.ETup (List.rev iargs), cnsts) in
+
+                  (* feeds the trait impl with the deps / args *)
+                  let rec emit_args e cnsts = function
+                    | x :: xs ->
+                      let (x, cnsts) = emit_arg [] cnsts x in
+                      emit_args (C.EApp (e, x)) cnsts xs
+                    | [] -> r := e; visit ctx (CnstSeq cnsts) in
+                  emit_args (C.EVar (name, Z.zero)) [] deps
 
                 | [] ->
                   (* search the context for evidence *)

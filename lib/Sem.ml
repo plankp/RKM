@@ -168,7 +168,7 @@ let visit_contexted_type (ctx : context) (cnsts : Ast.ast_cnst list) (annot : As
   let rec loop acc rules ctx = function
     | [] ->
       let ctx = { ctx with tvenv = List.tl ctx.tvenv } in
-      Ok (acc, bty, kind, S.merge_cnst (f :: rules), m, ctx)
+      Ok (List.rev acc, bty, kind, S.merge_cnst (f :: rules), m, ctx)
     | (n, [t]) :: xs -> begin
       match StrMap.find_opt n ctx.traits with
         | None -> Error ["unknown trait " ^ n]
@@ -226,6 +226,20 @@ let lookup_dctor n ty rules ctx =
       match ctor with
         | None -> Error ["unknown data constructor named " ^ n]
         | Some ctor -> Ok (ctor, ty, rules, ctx)
+
+let translate_preds ?(preds = []) (ctx : context) (p : T.pred list) =
+  let rec loop preds iargs ctx = function
+    | x :: xs ->
+      let (n, ctx) = mk_name ctx "@" in
+      loop ((C.EVar n, x) :: preds) (n :: iargs) ctx xs
+    | [] ->
+      match iargs with
+        | [x] -> ((fun e -> C.ELam (x, e)), preds, ctx)
+        | _ ->
+          let (n, ctx) = mk_name ctx "@" in
+          ((fun e -> C.ELam (n, C.ECase (C.EVar n,
+            [C.PatUnpack (List.rev iargs), e]))), preds, ctx) in
+  loop preds [] ctx p
 
 let visit_pat (ty : T.t) (rules : S.cnst list) (next : tkmap) (ctx : context) (ast : Ast.ast_pat) =
   let rec visit captures next ty rules ctx = function
@@ -465,27 +479,21 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
       let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
       eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, None, e) :: acc) rules ctx xs
     | (n, Some _, defs) :: xs ->
-      let rec unpeel preds impls iargs ctx = function
-        | T.TQuant (_, t) -> unpeel preds impls iargs ctx t
+      let rec unpeel preds emitfs ctx = function
+        | T.TQuant (_, t) -> unpeel preds emitfs ctx t
         | T.TPred (p, t) ->
-          let (n, ctx) = mk_name ctx "@" in
-          let impl = (C.EVar n, p) in
-          unpeel (impl :: preds) (impl :: impls) (n :: iargs) ctx t
+          let (emitf, preds, ctx) = translate_preds ~preds ctx p in
+          unpeel preds (emitf :: emitfs) ctx t
         | ta ->
           let (bty, ctx) = mk_tvar ctx "" in
           let old_implications = ctx.implications in
-          let ctx = { ctx with implications = impls } in
+          let ctx = { ctx with implications = preds @ ctx.implications } in
           let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
           let ctx = { ctx with implications = old_implications } in
-          let (e, ctx) = match iargs with
-            | [] -> (e, ctx)
-            | [x] -> (C.ELam (x, e), ctx)
-            | xs ->
-              let (n, ctx) = mk_name ctx "" in
-              (C.ELam (n, C.ECase (C.EVar n, [C.PatUnpack (List.rev xs), e])), ctx) in
+          let e = List.fold_left (fun e f -> f e) e emitfs in
           eval_init new_ids (V.Set.add (n, Z.zero) ds) ((n, bty, Some (preds, ta), e) :: acc) rules ctx xs in
       let (_, annot) = StrMap.find n new_ids in
-      unpeel [] ctx.implications [] ctx annot in
+      unpeel [] [] ctx annot in
 
   let rec fill_scope new_ids rules ctx = function
     | [] ->
@@ -506,7 +514,7 @@ and visit_vdefs (recur : bool) (rules : S.cnst list) (ctx : context) (vb : Ast.a
       fill_scope new_ids rules ctx xs
     | (n, Some (cnsts, annot), _) :: xs ->
       let* (preds, bty, kind, f, _, ctx) = visit_contexted_type ctx cnsts annot in
-      let bty = List.fold_left (fun t p -> T.TPred (p, t)) bty preds in
+      let bty = if preds = [] then bty else T.TPred (preds, bty) in
       let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: rules in
       let qs = T.collect_free_tvars bty in
       let filterf (n, _) = not @@ V.Set.mem n monos in
@@ -521,20 +529,25 @@ and lookup_var n ty ctx errf =
   match lookup_env n ctx.idenv with
     | None -> Error [errf ()]
     | Some (e, vty) ->
-      let rec fill_implicits iargs rules ctx = function
-        | T.TPred (p, t) ->
+      let rec emit_arg iargs cnsts = function
+        | p :: xs ->
           let (tc, dep) = C.mk_empty_hole () in
-          let rules = S.CnstImply (ctx.implications, S.CnstPred (dep, p)) :: rules in
-          fill_implicits (tc :: iargs) rules ctx t
+          let new_cnst = S.CnstImply (ctx.implications, S.CnstPred (dep, p)) in
+          emit_arg (tc :: iargs) (new_cnst :: cnsts) xs
+        | [] ->
+          match iargs with
+            | [x] -> (x, cnsts)
+            | _ -> (C.ETup (List.rev iargs), cnsts) in
+
+      let rec fill_implicits e rules ctx = function
+        | T.TPred (p, t) ->
+          let (p, rules) = emit_arg [] rules p in
+          fill_implicits (C.EApp (e, p)) rules ctx t
         | t ->
           let rules = S.CnstEq (ctx.fixed_tvars, ty, t) :: rules in
-          let e = match iargs with
-            | [] -> e
-            | [x] -> C.EApp (e, x)
-            | xs -> C.EApp (e, C.ETup (List.rev xs)) in
           Ok (e, S.merge_cnst rules, ctx) in
       let (_, instty, ctx) = inst ctx vty in
-      fill_implicits [] [] ctx instty
+      fill_implicits e [] ctx instty
 
 and visit_expr (ty : T.t) (rules : S.cnst list) (ctx : context) = function
   | Ast.Lit lit ->
@@ -748,18 +761,12 @@ let visit_top_impl (ctx : context) ((cnsts, n, ty, vb): Ast.ast_impl) =
       let (qs, m, ctx) = gen ctx qs in
       let preds = List.map (T.subst_pred ~weak:m) preds in
       let bty = T.subst ~weak:m bty in
-      let qt = List.fold_left (fun t p -> T.TPred (p, t)) bty preds in
+      let qt = if preds = [] then bty else T.TPred (preds, bty) in
       let qt = List.fold_left (fun t q -> T.TQuant (q, t)) qt qs in
 
-      let rec compute_outer_iargs impls iargs ctx = function
-        | [] -> (impls, iargs, ctx)
-        | p :: xs ->
-          let (n, ctx) = mk_name ctx "@" in
-          let impl = (C.EVar n, p) in
-          compute_outer_iargs (impl :: impls) (n :: iargs) ctx xs in
-
-      let (impls, outer_iargs, ctx) = compute_outer_iargs [] [] ctx preds in
-
+      let (emitf, impls, ctx) =
+        if preds = [] then ((fun x -> x), [], ctx)
+        else translate_preds ctx preds in
       let name = sprintf "@$%s[%s]" info.name (T.to_string bty) in
       let* vb = organize_vdefs vb in
       let monos = free_ctx ctx in
@@ -782,13 +789,7 @@ let visit_top_impl (ctx : context) ((cnsts, n, ty, vb): Ast.ast_impl) =
                   let e = match entries with
                     | [x] -> x
                     | xs -> C.ETup xs in
-                  let (e, ctx) = match outer_iargs with
-                    | [] -> (e, ctx)
-                    | [x] -> (C.ELam (x, e), ctx)
-                    | xs ->
-                      let (n, ctx) = mk_name ctx "" in
-                      (C.ELam (n, C.ECase (C.EVar n, [C.PatUnpack xs, e])), ctx) in
-                  Ok ([(name, Z.zero), e], ctx)
+                  Ok ([(name, Z.zero), emitf e], ctx)
         end
 
         | (n, _, []) :: _ -> Error ["missing implementation for " ^ n]
@@ -797,22 +798,16 @@ let visit_top_impl (ctx : context) ((cnsts, n, ty, vb): Ast.ast_impl) =
           match StrMap.find_opt n remaining with
             | None -> Error ["trait " ^ info.name ^ " does not have field " ^ n]
             | Some annot ->
-              let rec unpeel impls iargs ctx = function
+              let rec unpeel preds emitfs ctx = function
                 | T.TPred (p, t) ->
-                  let (n, ctx) = mk_name ctx "@" in
-                  let impl = (C.EVar n, p) in
-                  unpeel (impl :: impls) (n :: iargs) ctx t
+                  let (emitf, preds, ctx) = translate_preds ~preds ctx p in
+                  unpeel preds (emitf :: emitfs) ctx t
                 | ta ->
                   let (bty, ctx) = mk_tvar ctx "" in
-                  let ctx = { ctx with implications = impls } in
+                  let ctx = { ctx with implications = preds } in
                   let* (e, rules, ctx) = visit_generalized_lam bty rules ctx defs in
                   let ctx = { ctx with implications = [] } in
-                  let (e, ctx) = match iargs with
-                    | [] -> (e, ctx)
-                    | [x] -> (C.ELam (x, e), ctx)
-                    | xs ->
-                      let (n, ctx) = mk_name ctx "" in
-                      (C.ELam (n, C.ECase (C.EVar n, [C.PatUnpack (List.rev xs), e])), ctx) in
+                  let e = List.fold_left (fun e f -> f e) e emitfs in
 
                   match S.solve rules with
                     | Error e -> Error (List.map S.explain e)
@@ -829,7 +824,7 @@ let visit_top_impl (ctx : context) ((cnsts, n, ty, vb): Ast.ast_impl) =
       match eval_init StrMap.empty info.fields rules ctx vb with
         | Ok t -> Ok t
         | Error e ->
-          (* "undo" the otherwise to avoid using broken implementations *)
+          (* undo the assumption on error to avoid using broken impls *)
           info.allowed <- List.tl info.allowed;
           Error e
 
@@ -862,43 +857,19 @@ let visit_top_trait (ctx : context) ((n, args, vb): Ast.ast_trait) =
                 traits = StrMap.add n (trait, argkind) ctx.traits;
                 tvenv = [] } in
 
-              (* XXX: This way of handling extra type constraints is pretty nasty...
-               * fixing this requires either currying every single TPred item
-               * OR making every TPred take a list *)
               let layout = defs |> StrMap.to_seq |> List.of_seq in
               let layout = match layout with
-                | [x, (_, [], _)] ->
+                | [x, _] ->
                   [(x, Z.zero), C.ELam (("", Z.zero), C.EVar ("", Z.zero))]
-                | [x, (_, [_], _)] ->
-                  [(x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
-                    C.PatUnpack ["", Z.zero; "", Z.one],
-                      C.EApp (C.EVar ("", Z.zero), C.EVar ("", Z.one))]))]
-                | [x, (_, ps, _)] ->
-                  let (_, ps) = List.fold_left (fun (id, acc) _ ->
-                    (Z.succ id, ("", Z.succ id) :: acc)) (Z.zero, []) ps in
-                  [(x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
-                    C.PatUnpack (("", Z.zero) :: ps),
-                      C.EApp (C.EVar ("", Z.zero), C.ETup (List.map (fun n -> C.EVar n) ps))]))]
                 | _ ->
                   let (_, unpacking) = List.fold_left (fun (id, acc) _ ->
-                    (Z.succ id, ("f", id) :: acc)) (Z.zero, []) layout in
-                  let mapf layout offset = match layout with
-                    | (x, (_, [], _)) ->
-                      ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
-                        C.PatUnpack unpacking, C.EVar offset])))
-                    | (x, (_, [_], _)) ->
-                      ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
-                        C.PatUnpack (unpacking @ ["", Z.zero]),
-                          C.EApp (C.EVar offset, C.EVar ("", Z.zero))])))
-                    | (x, (_, ps, _)) ->
-                      let (_, ps) = List.fold_left (fun (id, acc) _ ->
-                        (Z.succ id, ("", id) :: acc)) (Z.zero, []) ps in
-                      ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
-                        C.PatUnpack (unpacking @ ps),
-                          C.EApp (C.EVar offset, C.ETup (List.map (fun n -> C.EVar n) ps))]))) in
+                    (Z.succ id, ("", id) :: acc)) (Z.zero, []) layout in
+                  let mapf (x, _) offset =
+                    ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero),
+                      [C.PatUnpack unpacking, C.EVar offset]))) in
                   List.map2 mapf layout unpacking in
-              let mapf k (qs, _, ty) =
-                let ty = T.TPred (T.PredTrait (trait, T.TRigid (arg, Z.zero)), ty) in
+              let mapf k (qs, ty) =
+                let ty = T.TPred ([T.PredTrait (trait, T.TRigid (arg, Z.zero))], ty) in
                 let ty = List.fold_left (fun t q -> T.TQuant (q, t)) ty qs in
                 (C.EVar (k, Z.zero), T.TQuant ((arg, Z.zero), ty)) in
               let defs = StrMap.mapi mapf defs in
@@ -914,13 +885,13 @@ let visit_top_trait (ctx : context) ((n, args, vb): Ast.ast_trait) =
           let (qs, m, ctx) = gen ctx qs in
           let preds = List.map (T.subst_pred ~weak:m) preds in
           let bty = T.subst ~weak:m bty in
-          let ty = List.fold_left (fun t p -> T.TPred (p, t)) bty preds in
+          let ty = if preds = [] then bty else T.TPred (preds, bty) in
           let updatef = function
             | None -> Some ty
             | t -> t in
           let next = StrMap.update n updatef fields in
           if next == fields then Error ["duplicate trait field " ^ n]
-          else process_fields next (StrMap.add n (qs, preds, ty) defs) rules ctx xs in
+          else process_fields next (StrMap.add n (qs, ty) defs) rules ctx xs in
 
       let* vb = organize_vdefs vb in
       process_fields StrMap.empty StrMap.empty [] ctx vb
