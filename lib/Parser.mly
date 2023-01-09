@@ -67,6 +67,7 @@ toplevel:
   | EXTERN; vb = block_externs { TopExtern vb }
   | TYPE; vb = block_aliases { TopAlias vb }
   | IMPL; e = impl { TopImpl e }
+  | TRAIT; e = trait { TopTrait e }
   | e = expr { TopExpr e }
 
 block_externs:
@@ -98,6 +99,9 @@ impl:
 impl_cnsts:
   | k = IDCTOR; args = annot3*; COMMA; xs = impl_cnsts { (k, args) :: xs }
   | k = IDCTOR; args = annot3*; IMPLIES { [k, args] }
+
+trait:
+  | n = IDCTOR; args = IDVAR*; WITH; vb = block_vbinds { (n, args, vb) }
 
 repl_expr:
   | LCURLY; e = expr; RCURLY; EOF { e }

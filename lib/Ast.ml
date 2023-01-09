@@ -6,6 +6,7 @@ type ast_toplevel =
   | TopExtern of ast_extern list
   | TopAlias of ast_alias list
   | TopImpl of ast_impl
+  | TopTrait of ast_trait
 
 and ast_expr =
   | Var of string
@@ -58,6 +59,9 @@ and ast_alias =
 and ast_impl =
   ast_cnst list * string * ast_typ * ast_vdef list
 
+and ast_trait =
+  string * string list * ast_vdef list
+
 and ast_lit =
   | LitInt of Z.t
   | LitStr of string
@@ -94,6 +98,12 @@ let rec output_top ppf = function
     fprintf ppf "impl %a" output_cnst x;
     List.iter (fprintf ppf ", %a" output_cnst) xs;
     fprintf ppf " => %s %a with {" n output_typ ty;
+    List.iter (fprintf ppf " %a;" output_vdef) vb;
+    output_string ppf " }"
+  | TopTrait (n, args, vb) ->
+    fprintf ppf "trait %s" n;
+    List.iter (fprintf ppf " %s") args;
+    output_string ppf " with {";
     List.iter (fprintf ppf " %a;" output_vdef) vb;
     output_string ppf " }"
 

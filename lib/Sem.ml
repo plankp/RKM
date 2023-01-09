@@ -49,29 +49,9 @@ let core_context : context = {
     "(::)", T.varList;
   ];
 
-  traits = map_of_list [
-    "Eq", (T.traitEq, T.TKind);
-  ];
+  traits = map_of_list [];
 
-  idenv = [
-    (* just for illustration purposes *)
-    map_of_list [
-      "(!=)", (
-        C.ELam (("a", Z.zero), C.ECase (C.EVar ("a", Z.zero), [
-          C.PatUnpack ["p", Z.zero; "q", Z.zero], C.EVar ("p", Z.zero)])),
-        T.TQuant (("a", Z.zero),
-          T.TPred (T.PredTrait (T.traitEq, T.TRigid ("a", Z.zero)),
-            T.TArr (T.TRigid ("a", Z.zero),
-              T.TArr (T.TRigid ("a", Z.zero), T.tyBool)))));
-      "(==)", (
-        C.ELam (("a", Z.zero), C.ECase (C.EVar ("a", Z.zero), [
-          C.PatUnpack ["p", Z.zero; "q", Z.zero], C.EVar ("q", Z.zero)])),
-        T.TQuant (("a", Z.zero),
-          T.TPred (T.PredTrait (T.traitEq, T.TRigid ("a", Z.zero)),
-            T.TArr (T.TRigid ("a", Z.zero),
-              T.TArr (T.TRigid ("a", Z.zero), T.tyBool)))));
-    ];
-  ];
+  idenv = [];
   tvenv = [];
 
   fixed_tvars = V.Set.empty;
@@ -853,6 +833,98 @@ let visit_top_impl (ctx : context) ((cnsts, n, ty, vb): Ast.ast_impl) =
           info.allowed <- List.tl info.allowed;
           Error e
 
+let visit_top_trait (ctx : context) ((n, args, vb): Ast.ast_trait) =
+  if ctx.tvenv <> [] then failwith "TVENV NOT EMPTY?";
+
+  match args with
+    | [] | _ :: _ :: _ -> Error ["multi parameter traits are not supported"]
+    | [arg] ->
+      let (argkind, ctx) = mk_tvar ctx "" in
+      let tvenv = StrMap.singleton arg (T.TRigid (arg, Z.zero), argkind) in
+      let ctx = { ctx with tvenv = [tvenv] } in
+      let rec process_fields fields defs rules ctx = function
+        | [] -> begin
+          match S.solve rules with
+            | Error e -> Error (List.map S.explain e)
+            | Ok (_ :: _ as e) -> Error (List.map S.explain_remaining e)
+            | Ok [] ->
+              let trait = T.Trait {
+                name = n;
+                quant = (arg, Z.zero);
+                fields = fields;
+                allowed = [];
+              } in
+
+              (* aggressively ground all remaining kinds to * *)
+              let foldf (_, r) _ = r := Some T.TKind in
+              let () = T.fold_free_tvars foldf argkind () in
+              let ctx = { ctx with
+                traits = StrMap.add n (trait, argkind) ctx.traits;
+                tvenv = [] } in
+
+              (* XXX: This way of handling extra type constraints is pretty nasty...
+               * fixing this requires either currying every single TPred item
+               * OR making every TPred take a list *)
+              let layout = defs |> StrMap.to_seq |> List.of_seq in
+              let layout = match layout with
+                | [x, (_, [], _)] ->
+                  [(x, Z.zero), C.ELam (("", Z.zero), C.EVar ("", Z.zero))]
+                | [x, (_, [_], _)] ->
+                  [(x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
+                    C.PatUnpack ["", Z.zero; "", Z.one],
+                      C.EApp (C.EVar ("", Z.zero), C.EVar ("", Z.one))]))]
+                | [x, (_, ps, _)] ->
+                  let (_, ps) = List.fold_left (fun (id, acc) _ ->
+                    (Z.succ id, ("", Z.succ id) :: acc)) (Z.zero, []) ps in
+                  [(x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
+                    C.PatUnpack (("", Z.zero) :: ps),
+                      C.EApp (C.EVar ("", Z.zero), C.ETup (List.map (fun n -> C.EVar n) ps))]))]
+                | _ ->
+                  let (_, unpacking) = List.fold_left (fun (id, acc) _ ->
+                    (Z.succ id, ("f", id) :: acc)) (Z.zero, []) layout in
+                  let mapf layout offset = match layout with
+                    | (x, (_, [], _)) ->
+                      ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
+                        C.PatUnpack unpacking, C.EVar offset])))
+                    | (x, (_, [_], _)) ->
+                      ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
+                        C.PatUnpack (unpacking @ ["", Z.zero]),
+                          C.EApp (C.EVar offset, C.EVar ("", Z.zero))])))
+                    | (x, (_, ps, _)) ->
+                      let (_, ps) = List.fold_left (fun (id, acc) _ ->
+                        (Z.succ id, ("", id) :: acc)) (Z.zero, []) ps in
+                      ((x, Z.zero), C.ELam (("", Z.zero), C.ECase (C.EVar ("", Z.zero), [
+                        C.PatUnpack (unpacking @ ps),
+                          C.EApp (C.EVar offset, C.ETup (List.map (fun n -> C.EVar n) ps))]))) in
+                  List.map2 mapf layout unpacking in
+              let mapf k (qs, _, ty) =
+                let ty = T.TPred (T.PredTrait (trait, T.TRigid (arg, Z.zero)), ty) in
+                let ty = List.fold_left (fun t q -> T.TQuant (q, t)) ty qs in
+                (C.EVar (k, Z.zero), T.TQuant ((arg, Z.zero), ty)) in
+              let defs = StrMap.mapi mapf defs in
+              Ok (layout, { ctx with idenv = defs :: ctx.idenv })
+        end
+
+        | (n, None, _) :: _ -> Error ["missing annotation for " ^ n]
+        | (_, _, _ :: _) :: _ -> Error ["default implementation not allowed here"]
+        | (n, Some (cnsts, annot), []) :: xs ->
+          let* (preds, bty, kind, f, _, ctx) = visit_contexted_type ctx cnsts annot in
+          let rules = S.CnstEq (V.Set.empty, kind, T.TKind) :: f :: rules in
+          let qs = T.collect_free_tvars bty in
+          let (qs, m, ctx) = gen ctx qs in
+          let preds = List.map (T.subst_pred ~weak:m) preds in
+          let bty = T.subst ~weak:m bty in
+          let ty = List.fold_left (fun t p -> T.TPred (p, t)) bty preds in
+          let updatef = function
+            | None -> Some ty
+            | t -> t in
+          let next = StrMap.update n updatef fields in
+          if next == fields then Error ["duplicate trait field " ^ n]
+          else process_fields next (StrMap.add n (qs, preds, ty) defs) rules ctx xs in
+
+      let* vb = organize_vdefs vb in
+      process_fields StrMap.empty StrMap.empty [] ctx vb
+
 let visit_top_externs (ctx : context) (vb : Ast.ast_extern list) =
   let rec loop rules map ctx = function
     | [] -> begin
@@ -998,6 +1070,9 @@ let visit_toplevel (ctx : context) (ast : Ast.ast_toplevel) =
       Ok (AddTypes m, ctx)
     | Ast.TopDef defs ->
       let* (m, ctx) = visit_top_defs ctx defs in
+      Ok (AddGlobl m, ctx)
+    | Ast.TopTrait defs ->
+      let* (m, ctx) = visit_top_trait ctx defs in
       Ok (AddGlobl m, ctx)
     | Ast.TopImpl defs ->
       let* (m, ctx) = visit_top_impl ctx defs in

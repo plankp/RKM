@@ -105,17 +105,6 @@ let () =
   let Variant { cases; _ } = varRef in
   Hashtbl.replace cases "ref" [TRigid ("a", Z.zero)]
 
-let traitEq : trait = Trait {
-  name = "Eq";
-  quant = ("a", Z.zero);
-  fields = StrMap.empty
-    |> StrMap.add "(==)"
-      (TArr (TRigid ("a", Z.zero), TArr (TRigid ("a", Z.zero), tyBool)))
-    |> StrMap.add "(!=)"
-      (TArr (TRigid ("a", Z.zero), TArr (TRigid ("a", Z.zero), tyBool)));
-  allowed = [];
-}
-
 let rec unwrap : t -> t = function
   | TVar (_, ({ contents = Some t } as r)) ->
     let t = unwrap t in r := Some t; t
